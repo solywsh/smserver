@@ -351,3 +351,72 @@ func parseID(s string) int64 {
 	id, _ := strconv.ParseInt(s, 10, 64)
 	return id
 }
+
+// ClonePull pulls configuration from phone via SmsForwarder API
+func ClonePull(engine *xorm.Engine) gin.HandlerFunc {
+	type pullRequest struct {
+		VersionCode int `json:"version_code"` // App version code
+	}
+
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		var req pullRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Call phone API directly
+		client := phoneclient.NewClient(device)
+		config, err := client.ClonePull(req.VersionCode)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, config)
+	}
+}
+
+// ClonePush pushes configuration to phone via SmsForwarder API
+func ClonePush(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		// Parse the config from request body
+		var config phoneclient.CloneConfig
+		if err := c.ShouldBindJSON(&config); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Call phone API directly
+		client := phoneclient.NewClient(device)
+		err = client.ClonePush(config)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Configuration pushed successfully"})
+	}
+}

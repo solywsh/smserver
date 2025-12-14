@@ -64,6 +64,9 @@ export interface Device {
   sm4_key: string;      // SM4 encryption key
   status: string;       // online, offline, unknown
   battery: number;
+  battery_level: string;   // e.g., "85%"
+  battery_status: string;  // e.g., "充电中", "未充电"
+  battery_plugged: string; // e.g., "AC", "USB", "无"
   latitude: number;
   longitude: number;
   sim_info: string;
@@ -137,6 +140,35 @@ export interface LocationInfo {
   time: string;
 }
 
+// Clone configuration (一键换新机)
+// Uses Record<string, unknown> for flexibility as the config has many optional fields
+export type CloneConfig = Record<string, unknown>;
+
+// Sender item in clone config
+export interface CloneSender {
+  id: number;
+  type: number;
+  name: string;
+  status: number;
+  time: string;
+  json_setting: string;
+}
+
+// Rule item in clone config
+export interface CloneRule {
+  id: number;
+  type: string;
+  filed: string;
+  check: string;
+  value: string;
+  sender_id: number;
+  sms_template: string;
+  regex_replace: string;
+  sim_slot: string;
+  status: number;
+  time: string;
+}
+
 export const api = {
   // Auth
   login: (username: string, password: string) =>
@@ -156,6 +188,10 @@ export const api = {
   // Devices
   getDevices: () => request<{ items: Device[] }>('/api/devices'),
 
+  refreshDevices: () => request<{ items: Device[]; refreshed: number; online_count: number }>('/api/devices/refresh', {
+    method: 'POST',
+  }),
+
   createDevice: (name: string, phoneAddr: string, sm4Key: string, remark?: string) =>
     request<Device>('/api/devices', {
       method: 'POST',
@@ -163,6 +199,12 @@ export const api = {
     }),
 
   getDevice: (id: string | number) => request<Device>(`/api/devices/${id}`),
+
+  updateDevice: (id: string | number, data: { name?: string; phone_addr?: string; sm4_key?: string; remark?: string }) =>
+    request<Device>(`/api/devices/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 
   deleteDevice: (id: string | number) =>
     request(`/api/devices/${id}`, { method: 'DELETE' }),
@@ -227,5 +269,18 @@ export const api = {
     request<{ message: string }>(`/api/devices/${deviceId}/wol`, {
       method: 'POST',
       body: JSON.stringify({ mac, ip, port }),
+    }),
+
+  // Clone configuration (一键换新机)
+  clonePull: (deviceId: string | number, versionCode: number) =>
+    request<CloneConfig>(`/api/devices/${deviceId}/clone/pull`, {
+      method: 'POST',
+      body: JSON.stringify({ version_code: versionCode }),
+    }),
+
+  clonePush: (deviceId: string | number, config: CloneConfig) =>
+    request<{ message: string }>(`/api/devices/${deviceId}/clone/push`, {
+      method: 'POST',
+      body: JSON.stringify(config),
     }),
 };

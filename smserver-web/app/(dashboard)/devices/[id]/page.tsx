@@ -48,6 +48,7 @@ import {
   Plug,
   BatteryWarning,
   MapPinOff,
+  Settings2,
 } from 'lucide-react';
 
 export default function DeviceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -423,6 +424,7 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
                   {phoneConfig.enable_api_contact_query && <Badge variant="outline">Contact Query</Badge>}
                   {phoneConfig.enable_api_battery_query && <Badge variant="outline">Battery Query</Badge>}
                   {phoneConfig.enable_api_wol && <Badge variant="outline">Wake-on-LAN</Badge>}
+                  {phoneConfig.enable_api_clone && <Badge variant="outline">Clone Config</Badge>}
                 </div>
               </div>
             )}
@@ -550,6 +552,13 @@ export default function DeviceDetailPage({ params }: { params: Promise<{ id: str
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            <Link href={`/devices/${device.id}/clone`}>
+              <Button variant="outline" className="w-full justify-start">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Clone Configuration
+              </Button>
+            </Link>
 
             <div className="border-t pt-4 mt-2">
               <p className="text-sm text-muted-foreground mb-3">View Data</p>

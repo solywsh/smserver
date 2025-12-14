@@ -3,12 +3,14 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"backend/config"
 	"backend/internal/db"
 	"backend/internal/models"
 	"backend/internal/security"
 	"backend/internal/server"
+	"backend/internal/tasks"
 
 	"xorm.io/xorm"
 )
@@ -31,6 +33,10 @@ func main() {
 	if err := ensureAdmin(cfg, engine); err != nil {
 		log.Fatalf("ensure admin: %v", err)
 	}
+
+	// Start battery poller (poll every 5 minutes)
+	batteryPoller := tasks.NewBatteryPoller(engine, 5*time.Minute)
+	batteryPoller.Start()
 
 	router := server.NewRouter(cfg, engine)
 	log.Printf("starting server on %s", cfg.App.Addr)

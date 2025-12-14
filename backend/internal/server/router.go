@@ -28,7 +28,9 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 		// Device management
 		api.GET("/devices", handlers.ListDevices(engine))
 		api.POST("/devices", handlers.CreateDevice(engine))
+		api.POST("/devices/refresh", handlers.RefreshAllDevices(engine))
 		api.GET("/devices/:id", handlers.DeviceDetail(engine))
+		api.PUT("/devices/:id", handlers.UpdateDevice(engine))
 		api.DELETE("/devices/:id", handlers.DeleteDevice(engine))
 
 		// Phone control - direct calls to phone's SmsForwarder API
@@ -52,6 +54,10 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 
 		// Wake-on-LAN
 		api.POST("/devices/:id/wol", handlers.WakeOnLan(engine)) // Send WOL packet via phone
+
+		// Clone configuration (一键换新机)
+		api.POST("/devices/:id/clone/pull", handlers.ClonePull(engine)) // Pull config from phone
+		api.POST("/devices/:id/clone/push", handlers.ClonePush(engine)) // Push config to phone
 	}
 	return r
 }

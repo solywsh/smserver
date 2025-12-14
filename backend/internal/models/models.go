@@ -18,21 +18,24 @@ type User struct {
 // PhoneAddr: phone's HTTP server address (e.g., "http://192.168.1.100:5000" or "http://smsf.demo.com")
 // SM4Key: user-provided SM4 encryption key from phone's SmsForwarder settings
 type Device struct {
-	ID         int64     `xorm:"pk autoincr 'id'" json:"id"`
-	Name       string    `xorm:"varchar(100) notnull 'name'" json:"name"`
-	PhoneAddr  string    `xorm:"varchar(255) notnull 'phone_addr'" json:"phone_addr"` // Phone HTTP server address
-	SM4Key     string    `xorm:"varchar(64) notnull 'sm4_key'" json:"sm4_key"`        // User-provided SM4 key (32 hex chars)
-	Status     string    `xorm:"varchar(32) 'status'" json:"status"`                  // online, offline
-	Battery    int       `xorm:"int 'battery'" json:"battery"`
-	Latitude   float64   `xorm:"double 'latitude'" json:"latitude"`
-	Longitude  float64   `xorm:"double 'longitude'" json:"longitude"`
-	SimInfo    string    `xorm:"text 'sim_info'" json:"sim_info"`
-	DeviceMark string    `xorm:"varchar(255) 'device_mark'" json:"device_mark"` // Extra device mark from SmsForwarder
-	ExtraSim1  string    `xorm:"varchar(255) 'extra_sim1'" json:"extra_sim1"`   // SIM1 info
-	ExtraSim2  string    `xorm:"varchar(255) 'extra_sim2'" json:"extra_sim2"`   // SIM2 info
-	LastSeen   time.Time `xorm:"'last_seen'" json:"last_seen"`
-	Remark     string    `xorm:"varchar(255) 'remark'" json:"remark"`
-	CreatedAt  time.Time `xorm:"created" json:"created_at"`
+	ID             int64     `xorm:"pk autoincr 'id'" json:"id"`
+	Name           string    `xorm:"varchar(100) notnull 'name'" json:"name"`
+	PhoneAddr      string    `xorm:"varchar(255) notnull 'phone_addr'" json:"phone_addr"`  // Phone HTTP server address
+	SM4Key         string    `xorm:"varchar(64) notnull 'sm4_key'" json:"sm4_key"`         // User-provided SM4 key (32 hex chars)
+	Status         string    `xorm:"varchar(32) 'status'" json:"status"`                   // online, offline
+	Battery        int       `xorm:"int 'battery'" json:"battery"`                         // Deprecated: use BatteryLevel
+	BatteryLevel   string    `xorm:"varchar(10) 'battery_level'" json:"battery_level"`     // e.g., "85%"
+	BatteryStatus  string    `xorm:"varchar(50) 'battery_status'" json:"battery_status"`   // e.g., "充电中", "未充电"
+	BatteryPlugged string    `xorm:"varchar(20) 'battery_plugged'" json:"battery_plugged"` // e.g., "AC", "USB", "无"
+	Latitude       float64   `xorm:"double 'latitude'" json:"latitude"`
+	Longitude      float64   `xorm:"double 'longitude'" json:"longitude"`
+	SimInfo        string    `xorm:"text 'sim_info'" json:"sim_info"`
+	DeviceMark     string    `xorm:"varchar(255) 'device_mark'" json:"device_mark"` // Extra device mark from SmsForwarder
+	ExtraSim1      string    `xorm:"varchar(255) 'extra_sim1'" json:"extra_sim1"`   // SIM1 info
+	ExtraSim2      string    `xorm:"varchar(255) 'extra_sim2'" json:"extra_sim2"`   // SIM2 info
+	LastSeen       time.Time `xorm:"'last_seen'" json:"last_seen"`
+	Remark         string    `xorm:"varchar(255) 'remark'" json:"remark"`
+	CreatedAt      time.Time `xorm:"created" json:"created_at"`
 }
 
 // SmsMessage stores SMS history per device.

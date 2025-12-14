@@ -23,6 +23,7 @@ import {
   Plus,
   Smartphone,
   Battery,
+  BatteryCharging,
   MapPin,
   Clock,
   Trash2,
@@ -31,6 +32,7 @@ import {
   Wifi,
   WifiOff,
   Globe,
+  Pencil,
 } from 'lucide-react';
 
 export default function DevicesPage() {
@@ -40,6 +42,13 @@ export default function DevicesPage() {
   const [newDevice, setNewDevice] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '' });
   const [creating, setCreating] = useState(false);
   const [testing, setTesting] = useState(false);
+
+  // Edit device state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '' });
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchDevices = useCallback(async () => {
     setLoading(true);
@@ -51,6 +60,18 @@ export default function DevicesPage() {
     }
     setLoading(false);
   }, []);
+
+  const refreshDevices = async () => {
+    setRefreshing(true);
+    const res = await api.refreshDevices();
+    if (res.data) {
+      setDevices(res.data.items || []);
+      toast.success(`Refreshed ${res.data.refreshed} devices (${res.data.online_count} online)`);
+    } else {
+      toast.error(res.error || 'Failed to refresh devices');
+    }
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     fetchDevices();
@@ -144,6 +165,56 @@ export default function DevicesPage() {
     }
   };
 
+  const handleEditDevice = (device: Device, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingDevice(device);
+    setEditForm({
+      name: device.name,
+      phoneAddr: device.phone_addr,
+      sm4Key: device.sm4_key,
+      remark: device.remark || '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveDevice = async () => {
+    if (!editingDevice) return;
+    if (!editForm.name.trim()) {
+      toast.error('Device name is required');
+      return;
+    }
+    if (!editForm.phoneAddr.trim()) {
+      toast.error('Phone address is required');
+      return;
+    }
+    if (!editForm.sm4Key.trim()) {
+      toast.error('SM4 Key is required');
+      return;
+    }
+    if (editForm.sm4Key.length !== 32) {
+      toast.error('SM4 Key must be 32 hex characters');
+      return;
+    }
+
+    setSaving(true);
+    const res = await api.updateDevice(editingDevice.id, {
+      name: editForm.name.trim(),
+      phone_addr: editForm.phoneAddr.trim(),
+      sm4_key: editForm.sm4Key.trim(),
+      remark: editForm.remark.trim(),
+    });
+    if (res.data) {
+      toast.success('Device updated successfully');
+      setEditDialogOpen(false);
+      setEditingDevice(null);
+      fetchDevices();
+    } else {
+      toast.error(res.error || 'Failed to update device');
+    }
+    setSaving(false);
+  };
+
   const getStatusBadge = (device: Device) => {
     if (device.status === 'online') {
       return <Badge variant="default" className="bg-green-500">Online</Badge>;
@@ -156,6 +227,20 @@ export default function DevicesPage() {
   const formatLastSeen = (lastSeen: string) => {
     const date = new Date(lastSeen);
     return date.toLocaleString();
+  };
+
+  const getBatteryDisplay = (device: Device) => {
+    if (!device.battery_level) return null;
+    // "充电中" means charging, "未充电" means not charging
+    const isCharging = device.battery_status === '充电中' || device.battery_plugged === 'AC' || device.battery_plugged === 'USB';
+    const Icon = isCharging ? BatteryCharging : Battery;
+    return (
+      <div className="flex items-center gap-2">
+        <Icon className={`h-4 w-4 ${isCharging ? 'text-green-500' : ''}`} />
+        <span>{device.battery_level}</span>
+        {isCharging && <span className="text-xs text-green-500">Charging</span>}
+      </div>
+    );
   };
 
   if (loading) {
@@ -188,8 +273,12 @@ export default function DevicesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Devices</h1>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchDevices}>
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" size="icon" onClick={refreshDevices} disabled={refreshing}>
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             if (!open) {
@@ -343,8 +432,16 @@ export default function DevicesPage() {
                       <Smartphone className="h-5 w-5" />
                       {device.name}
                     </CardTitle>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {getStatusBadge(device)}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => handleEditDevice(device, e)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -375,12 +472,7 @@ export default function DevicesPage() {
                       )}
                       <span className="truncate">{device.phone_addr}</span>
                     </div>
-                    {device.battery > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Battery className="h-4 w-4" />
-                        <span>{device.battery}%</span>
-                      </div>
-                    )}
+                    {getBatteryDisplay(device)}
                     {(device.latitude !== 0 || device.longitude !== 0) && (
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4" />
@@ -398,6 +490,88 @@ export default function DevicesPage() {
           ))}
         </div>
       )}
+
+      {/* Edit Device Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setEditDialogOpen(false);
+          setEditingDevice(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Device</DialogTitle>
+            <DialogDescription>
+              Update device information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Device Name *</Label>
+              <Input
+                id="edit-name"
+                placeholder="My Phone"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-phoneAddr">Phone Address *</Label>
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Input
+                  id="edit-phoneAddr"
+                  placeholder="http://192.168.1.100:5000"
+                  value={editForm.phoneAddr}
+                  onChange={(e) => setEditForm({ ...editForm, phoneAddr: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-sm4Key">SM4 Key *</Label>
+              <Input
+                id="edit-sm4Key"
+                placeholder="32-character hex string"
+                value={editForm.sm4Key}
+                onChange={(e) => setEditForm({ ...editForm, sm4Key: e.target.value })}
+                className="font-mono"
+                maxLength={32}
+              />
+              <p className="text-xs text-muted-foreground">
+                {editForm.sm4Key.length}/32 characters
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-remark">Remark (optional)</Label>
+              <Textarea
+                id="edit-remark"
+                placeholder="Optional notes about this device"
+                value={editForm.remark}
+                onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDevice} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

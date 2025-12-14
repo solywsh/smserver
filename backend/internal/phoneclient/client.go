@@ -359,3 +359,43 @@ func (c *Client) QueryLocation() (*LocationResponse, error) {
 
 	return &location, nil
 }
+
+// ClonePullRequest represents parameters for pulling clone configuration
+type ClonePullRequest struct {
+	VersionCode int `json:"version_code"` // App version code (must match between server and client)
+}
+
+// CloneConfig represents the full clone configuration from /clone/pull
+// Using map[string]interface{} for flexibility as the config has many optional fields
+type CloneConfig map[string]interface{}
+
+// ClonePull calls /clone/pull to pull configuration from phone
+func (c *Client) ClonePull(versionCode int) (CloneConfig, error) {
+	req := ClonePullRequest{
+		VersionCode: versionCode,
+	}
+
+	resp, err := c.doRequest("/clone/pull", req)
+	if err != nil {
+		return nil, err
+	}
+
+	// The response data is the clone config directly
+	dataBytes, err := json.Marshal(resp.Data)
+	if err != nil {
+		return nil, fmt.Errorf("marshal data: %w", err)
+	}
+
+	var config CloneConfig
+	if err := json.Unmarshal(dataBytes, &config); err != nil {
+		return nil, fmt.Errorf("unmarshal clone config: %w", err)
+	}
+
+	return config, nil
+}
+
+// ClonePush calls /clone/push to push configuration to phone
+func (c *Client) ClonePush(config CloneConfig) error {
+	_, err := c.doRequest("/clone/push", config)
+	return err
+}
