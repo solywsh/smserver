@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, Contact } from '@/lib/api';
+import { api, Contact, SyncResult } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,24 +41,41 @@ export default function ContactsPage({ params }: { params: Promise<{ id: string 
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchName, setSearchName] = useState('');
-  const [searchPhone, setSearchPhone] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState('');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
     phoneNumber: '',
   });
   const [adding, setAdding] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
-  const fetchContacts = async () => {
+  const fetchContacts = async (withSync = false) => {
     setLoading(true);
+
+    // If withSync, first sync data from phone
+    if (withSync) {
+      const syncRes = await api.syncDeviceContacts(resolvedParams.id);
+      if (syncRes.data) {
+        setSyncResult(syncRes.data);
+        const message = syncRes.data.new_count > 0 || syncRes.data.updated_count > 0
+          ? `Synced ${syncRes.data.new_count} new, ${syncRes.data.updated_count} updated`
+          : 'Contacts are up to date';
+        toast.success(message);
+      } else if (syncRes.error) {
+        toast.error(syncRes.error || 'Sync failed');
+      }
+    }
+
+    // Then fetch from database
     const res = await api.getDeviceContacts(
       resolvedParams.id,
-      searchPhone || undefined,
-      searchName || undefined
+      searchKeyword || undefined
     );
     if (res.data) {
       setContacts(res.data.items || []);
+      setTotal(res.data.total || 0);
     } else {
       toast.error(res.error || 'Failed to fetch contacts');
     }
@@ -115,11 +132,18 @@ export default function ContactsPage({ params }: { params: Promise<{ id: string 
                 <Users className="h-5 w-5" />
                 Contact List
               </CardTitle>
-              <CardDescription>{contacts.length} contacts</CardDescription>
+              <CardDescription>
+                {total} contacts total
+                {syncResult && (syncResult.new_count > 0 || syncResult.updated_count > 0) && (
+                  <span className="ml-2 text-green-600">
+                    ({syncResult.new_count} new, {syncResult.updated_count} updated)
+                  </span>
+                )}
+              </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="icon" onClick={fetchContacts}>
-                <RefreshCw className="h-4 w-4" />
+              <Button variant="outline" size="icon" onClick={() => fetchContacts(true)} disabled={loading} title="Sync & Refresh">
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
               <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                 <DialogTrigger asChild>
@@ -175,20 +199,13 @@ export default function ContactsPage({ params }: { params: Promise<{ id: string 
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name..."
+                placeholder="Search by name or phone..."
                 className="pl-10"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
-            <Input
-              placeholder="Phone number..."
-              className="w-[200px]"
-              value={searchPhone}
-              onChange={(e) => setSearchPhone(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
             <Button variant="secondary" onClick={handleSearch}>
               Search
             </Button>
@@ -198,7 +215,7 @@ export default function ContactsPage({ params }: { params: Promise<{ id: string 
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : contacts.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {(searchName || searchPhone) ? 'No contacts found matching your search' : 'No contacts yet'}
+              {searchKeyword ? 'No contacts found matching your search' : 'No contacts yet. Click the sync button to fetch from phone.'}
             </div>
           ) : (
             <div className="border rounded-md">
@@ -210,8 +227,8 @@ export default function ContactsPage({ params }: { params: Promise<{ id: string 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {contacts.map((contact, index) => (
-                    <TableRow key={index}>
+                  {contacts.map((contact) => (
+                    <TableRow key={contact.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
@@ -221,7 +238,7 @@ export default function ContactsPage({ params }: { params: Promise<{ id: string 
                       <TableCell>
                         <div className="flex items-center gap-2 font-mono">
                           <Phone className="h-4 w-4 text-muted-foreground" />
-                          {contact.phone_number}
+                          {contact.phone}
                         </div>
                       </TableCell>
                     </TableRow>

@@ -93,31 +93,64 @@ export interface PhoneConfig {
   sim_info_list?: Record<string, unknown>;
 }
 
-// SMS message from phone
+// SMS message from database (cached from phone)
 export interface SmsMessage {
-  content: string;
-  number: string;
-  name: string;
-  type: number;     // 1=received, 2=sent
-  date: number;     // timestamp in milliseconds
-  sim_id: number;   // 0=SIM1, 1=SIM2, -1=unknown
-  sub_id: number;
+  id: number;
+  device_id: number;
+  address: string;    // phone number
+  name: string;       // contact name
+  body: string;       // content
+  type: number;       // 1=received, 2=sent
+  sim_id: number;     // 0=SIM1, 1=SIM2, -1=unknown
+  sms_time: number;   // timestamp in milliseconds
+  created_at: string;
 }
 
-// Call log from phone
+// Call log from database (cached from phone)
 export interface CallLog {
-  dateLong: number; // timestamp in milliseconds
+  id: number;
+  device_id: number;
   number: string;
-  name?: string;
-  sim_id: number;   // 0=SIM1, 1=SIM2, -1=unknown
-  type: number;     // 1=incoming, 2=outgoing, 3=missed
-  duration: number; // seconds
+  name: string;
+  type: number;       // 1=incoming, 2=outgoing, 3=missed
+  duration: number;   // seconds
+  sim_id: number;     // 0=SIM1, 1=SIM2, -1=unknown
+  call_time: number;  // timestamp in milliseconds
+  created_at: string;
 }
 
-// Contact from phone
+// Contact from database (cached from phone)
 export interface Contact {
+  id: number;
+  device_id: number;
   name: string;
-  phone_number: string;
+  phone: string;
+  email?: string;
+  note?: string;
+  created_at: string;
+}
+
+// Sync result from backend
+export interface SyncResult {
+  new_count: number;
+  updated_count: number;
+  is_complete: boolean;
+}
+
+// Paginated response with optional sync result
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  sync?: SyncResult;
+}
+
+// Contacts response (no pagination)
+export interface ContactsResponse {
+  items: Contact[];
+  total: number;
+  sync?: SyncResult;
 }
 
 // Battery status from phone
@@ -213,16 +246,24 @@ export const api = {
   getPhoneConfig: (deviceId: string | number) =>
     request<PhoneConfig>(`/api/devices/${deviceId}/config`),
 
-  // SMS - query from phone
-  getDeviceSms: (deviceId: string | number, type?: number, pageNum?: number, pageSize?: number, keyword?: string) => {
+  // SMS - query from database with background sync
+  getDeviceSms: (deviceId: string | number, type?: number, pageNum?: number, pageSize?: number, keyword?: string, forceSync?: boolean) => {
     const params = new URLSearchParams();
     if (type !== undefined) params.append('type', type.toString());
     if (pageNum !== undefined) params.append('page_num', pageNum.toString());
     if (pageSize !== undefined) params.append('page_size', pageSize.toString());
     if (keyword) params.append('keyword', keyword);
+    if (forceSync) params.append('sync', 'true');
     const queryString = params.toString();
-    return request<{ items: SmsMessage[] }>(`/api/devices/${deviceId}/sms${queryString ? `?${queryString}` : ''}`);
+    return request<PaginatedResponse<SmsMessage>>(`/api/devices/${deviceId}/sms${queryString ? `?${queryString}` : ''}`);
   },
+
+  // SMS - manual sync from phone
+  syncDeviceSms: (deviceId: string | number, type?: number) =>
+    request<SyncResult>(`/api/devices/${deviceId}/sms/sync`, {
+      method: 'POST',
+      body: JSON.stringify({ type: type || 0 }),
+    }),
 
   sendSms: (deviceId: string | number, simSlot: number, phoneNumbers: string, msgContent: string) =>
     request<{ message: string }>(`/api/devices/${deviceId}/sms/send`, {
@@ -230,25 +271,39 @@ export const api = {
       body: JSON.stringify({ sim_slot: simSlot, phone_numbers: phoneNumbers, msg_content: msgContent }),
     }),
 
-  // Calls - query from phone
-  getDeviceCalls: (deviceId: string | number, type?: number, pageNum?: number, pageSize?: number, phoneNumber?: string) => {
+  // Calls - query from database with background sync
+  getDeviceCalls: (deviceId: string | number, type?: number, pageNum?: number, pageSize?: number, phoneNumber?: string, forceSync?: boolean) => {
     const params = new URLSearchParams();
     if (type !== undefined) params.append('type', type.toString());
     if (pageNum !== undefined) params.append('page_num', pageNum.toString());
     if (pageSize !== undefined) params.append('page_size', pageSize.toString());
     if (phoneNumber) params.append('phone_number', phoneNumber);
+    if (forceSync) params.append('sync', 'true');
     const queryString = params.toString();
-    return request<{ items: CallLog[] }>(`/api/devices/${deviceId}/calls${queryString ? `?${queryString}` : ''}`);
+    return request<PaginatedResponse<CallLog>>(`/api/devices/${deviceId}/calls${queryString ? `?${queryString}` : ''}`);
   },
 
-  // Contacts - query from phone
-  getDeviceContacts: (deviceId: string | number, phoneNumber?: string, name?: string) => {
+  // Calls - manual sync from phone
+  syncDeviceCalls: (deviceId: string | number, type?: number) =>
+    request<SyncResult>(`/api/devices/${deviceId}/calls/sync`, {
+      method: 'POST',
+      body: JSON.stringify({ type: type || 0 }),
+    }),
+
+  // Contacts - query from database with background sync
+  getDeviceContacts: (deviceId: string | number, keyword?: string, forceSync?: boolean) => {
     const params = new URLSearchParams();
-    if (phoneNumber) params.append('phone_number', phoneNumber);
-    if (name) params.append('name', name);
+    if (keyword) params.append('keyword', keyword);
+    if (forceSync) params.append('sync', 'true');
     const queryString = params.toString();
-    return request<{ items: Contact[] }>(`/api/devices/${deviceId}/contacts${queryString ? `?${queryString}` : ''}`);
+    return request<ContactsResponse>(`/api/devices/${deviceId}/contacts${queryString ? `?${queryString}` : ''}`);
   },
+
+  // Contacts - manual sync from phone
+  syncDeviceContacts: (deviceId: string | number) =>
+    request<SyncResult>(`/api/devices/${deviceId}/contacts/sync`, {
+      method: 'POST',
+    }),
 
   addContact: (deviceId: string | number, name: string, phoneNumber: string) =>
     request<{ message: string }>(`/api/devices/${deviceId}/contacts/add`, {

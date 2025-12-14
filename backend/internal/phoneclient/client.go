@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -26,6 +27,14 @@ func NewClient(device *models.Device) *Client {
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // Request represents the standard SmsForwarder request format
@@ -59,6 +68,8 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
+	log.Printf("[PhoneClient] %s request: %s", uri, string(reqBytes))
+
 	encryptedReq, err := security.SM4EncryptHex(c.device.SM4Key, reqBytes)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt request: %w", err)
@@ -74,6 +85,7 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		log.Printf("[PhoneClient] %s HTTP error: %v", uri, err)
 		return nil, fmt.Errorf("send request: %w", err)
 	}
 	defer httpResp.Body.Close()
@@ -84,11 +96,16 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
+	log.Printf("[PhoneClient] %s response status: %d, body length: %d", uri, httpResp.StatusCode, len(respBody))
+
 	// Decrypt response
 	decryptedResp, err := security.SM4DecryptHex(c.device.SM4Key, string(respBody))
 	if err != nil {
+		log.Printf("[PhoneClient] %s decrypt error: %v, raw response: %s", uri, err, string(respBody)[:min(200, len(respBody))])
 		return nil, fmt.Errorf("decrypt response: %w", err)
 	}
+
+	log.Printf("[PhoneClient] %s decrypted response: %s", uri, string(decryptedResp)[:min(500, len(decryptedResp))])
 
 	// Parse response
 	var resp Response
@@ -97,6 +114,7 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 	}
 
 	if resp.Code != 200 {
+		log.Printf("[PhoneClient] %s API error: code=%d, msg=%s", uri, resp.Code, resp.Msg)
 		return &resp, fmt.Errorf("phone returned error: %s", resp.Msg)
 	}
 

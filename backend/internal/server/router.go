@@ -38,15 +38,18 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 		api.GET("/devices/:id/config", handlers.QueryConfig(engine))
 
 		// SMS operations
-		api.GET("/devices/:id/sms", handlers.QuerySms(engine))      // Query SMS from phone
+		api.GET("/devices/:id/sms", handlers.QuerySms(engine))      // Query SMS from database with sync
 		api.POST("/devices/:id/sms/send", handlers.SendSMS(engine)) // Send SMS via phone
+		api.POST("/devices/:id/sms/sync", handlers.SyncSms(engine)) // Manual sync SMS from phone
 
 		// Call logs
-		api.GET("/devices/:id/calls", handlers.QueryCalls(engine)) // Query call logs from phone
+		api.GET("/devices/:id/calls", handlers.QueryCalls(engine))      // Query calls from database with sync
+		api.POST("/devices/:id/calls/sync", handlers.SyncCalls(engine)) // Manual sync calls from phone
 
 		// Contacts
-		api.GET("/devices/:id/contacts", handlers.QueryContacts(engine))   // Query contacts from phone
-		api.POST("/devices/:id/contacts/add", handlers.AddContact(engine)) // Add contact to phone
+		api.GET("/devices/:id/contacts", handlers.QueryContacts(engine))      // Query contacts from database with sync
+		api.POST("/devices/:id/contacts/add", handlers.AddContact(engine))    // Add contact to phone
+		api.POST("/devices/:id/contacts/sync", handlers.SyncContacts(engine)) // Manual sync contacts from phone
 
 		// Battery and location
 		api.GET("/devices/:id/battery", handlers.QueryBattery(engine))   // Query battery status

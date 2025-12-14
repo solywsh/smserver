@@ -231,14 +231,16 @@ export default function DevicesPage() {
 
   const getBatteryDisplay = (device: Device) => {
     if (!device.battery_level) return null;
-    // "充电中" means charging, "未充电" means not charging
+    // "充电中" means charging, "未充电" means not charging, "充满电" means full
     const isCharging = device.battery_status === '充电中' || device.battery_plugged === 'AC' || device.battery_plugged === 'USB';
-    const Icon = isCharging ? BatteryCharging : Battery;
+    const isFull = device.battery_status === '充满电';
+    const Icon = isCharging || isFull ? BatteryCharging : Battery;
     return (
       <div className="flex items-center gap-2">
-        <Icon className={`h-4 w-4 ${isCharging ? 'text-green-500' : ''}`} />
+        <Icon className={`h-4 w-4 ${isCharging || isFull ? 'text-green-500' : ''}`} />
         <span>{device.battery_level}</span>
-        {isCharging && <span className="text-xs text-green-500">Charging</span>}
+        {isFull && <span className="text-xs text-green-500">Full</span>}
+        {isCharging && !isFull && <span className="text-xs text-green-500">Charging</span>}
       </div>
     );
   };

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, CallLog } from '@/lib/api';
+import { api, CallLog, SyncResult } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,8 @@ import {
   Voicemail,
   Headphones,
   ShieldAlert,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function CallsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,13 +45,34 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('0');
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const pageSize = 20;
 
-  const fetchCalls = async () => {
+  const fetchCalls = async (withSync = false) => {
     setLoading(true);
+
+    // If withSync, first sync data from phone
+    if (withSync) {
+      const type = typeFilter === '0' ? undefined : parseInt(typeFilter);
+      const syncRes = await api.syncDeviceCalls(resolvedParams.id, type);
+      if (syncRes.data) {
+        setSyncResult(syncRes.data);
+        if (syncRes.data.new_count > 0) {
+          toast.success(`Synced ${syncRes.data.new_count} new calls`);
+        }
+      } else if (syncRes.error) {
+        toast.error(syncRes.error || 'Sync failed');
+      }
+    }
+
+    // Then fetch from database
     const type = typeFilter === '0' ? undefined : parseInt(typeFilter);
-    const res = await api.getDeviceCalls(resolvedParams.id, type, 1, 50);
+    const res = await api.getDeviceCalls(resolvedParams.id, type, page, pageSize);
     if (res.data) {
       setCalls(res.data.items || []);
+      setTotal(res.data.total || 0);
     } else {
       toast.error(res.error || 'Failed to fetch call logs');
     }
@@ -58,7 +81,7 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     fetchCalls();
-  }, [resolvedParams.id, typeFilter]);
+  }, [resolvedParams.id, typeFilter, page]);
 
   // Android CallLog.Calls TYPE constants + vendor-specific types
   const getCallTypeBadge = (type: number) => {
@@ -145,6 +168,8 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
     return '-';
   };
 
+  const totalPages = Math.ceil(total / pageSize);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -165,10 +190,18 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
                 <PhoneCall className="h-5 w-5" />
                 Call History
               </CardTitle>
-              <CardDescription>{calls.length} calls</CardDescription>
+              <CardDescription>
+                {total} calls total
+                {syncResult && syncResult.new_count > 0 && (
+                  <span className="ml-2 text-green-600">({syncResult.new_count} new synced)</span>
+                )}
+              </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <Button variant="outline" size="icon" onClick={() => fetchCalls(true)} disabled={loading} title="Sync & Refresh">
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
@@ -179,9 +212,6 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
                   <SelectItem value="3">Missed</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={fetchCalls}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -190,7 +220,7 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : calls.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {typeFilter !== '0' ? 'No calls found with this filter' : 'No call logs yet'}
+              {typeFilter !== '0' ? 'No calls found with this filter' : 'No call logs yet. Click the sync button to fetch from phone.'}
             </div>
           ) : (
             <div className="border rounded-md">
@@ -206,8 +236,8 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {calls.map((call, index) => (
-                    <TableRow key={index}>
+                  {calls.map((call) => (
+                    <TableRow key={call.id}>
                       <TableCell>{getCallTypeBadge(call.type)}</TableCell>
                       <TableCell className="font-mono">{call.number}</TableCell>
                       <TableCell>{call.name || '-'}</TableCell>
@@ -217,12 +247,41 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
                       </TableCell>
                       <TableCell className="text-muted-foreground">{getSimLabel(call.sim_id)}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(call.dateLong)}
+                        {formatDate(call.call_time)}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-muted-foreground">
+                Page {page} of {totalPages} ({total} total)
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

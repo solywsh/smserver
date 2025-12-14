@@ -6,6 +6,8 @@ import (
 
 	"backend/internal/models"
 	"backend/internal/phoneclient"
+	"backend/internal/repository"
+	"backend/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"xorm.io/xorm"
@@ -179,7 +181,7 @@ func QueryBattery(engine *xorm.Engine) gin.HandlerFunc {
 	}
 }
 
-// QuerySms queries SMS messages via phone's SmsForwarder API
+// QuerySms queries SMS messages from local database with background sync
 func QuerySms(engine *xorm.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("id")
@@ -196,27 +198,44 @@ func QuerySms(engine *xorm.Engine) gin.HandlerFunc {
 		// Parse query parameters
 		smsType, _ := strconv.Atoi(c.DefaultQuery("type", "0"))
 		pageNum, _ := strconv.Atoi(c.DefaultQuery("page_num", "1"))
-		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 		keyword := c.Query("keyword")
+		forceSync := c.Query("sync") == "true"
 
-		// Call phone API directly
-		client := phoneclient.NewClient(device)
-		items, err := client.QuerySms(phoneclient.SmsQueryRequest{
-			Type:     smsType,
-			PageNum:  pageNum,
-			PageSize: pageSize,
-			Keyword:  keyword,
-		})
+		// Trigger sync
+		syncService := services.NewSyncService(engine)
+		var syncResult *services.SyncResult
+		if forceSync {
+			// Blocking sync
+			syncResult, _ = syncService.SyncSms(device, smsType)
+		} else {
+			// Background sync
+			go syncService.SyncSms(device, smsType)
+		}
+
+		// Query from database
+		repo := repository.NewSmsRepository(engine)
+		items, total, err := repo.FindByDevice(device.ID, smsType, pageNum, pageSize, keyword)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"items": items})
+		response := gin.H{
+			"items": items,
+			"total": total,
+			"page":  pageNum,
+			"size":  pageSize,
+		}
+		if syncResult != nil {
+			response["sync"] = syncResult
+		}
+
+		c.JSON(http.StatusOK, response)
 	}
 }
 
-// QueryCalls queries call logs via phone's SmsForwarder API
+// QueryCalls queries call logs from local database with background sync
 func QueryCalls(engine *xorm.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("id")
@@ -233,27 +252,44 @@ func QueryCalls(engine *xorm.Engine) gin.HandlerFunc {
 		// Parse query parameters
 		callType, _ := strconv.Atoi(c.DefaultQuery("type", "0"))
 		pageNum, _ := strconv.Atoi(c.DefaultQuery("page_num", "1"))
-		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 		phoneNumber := c.Query("phone_number")
+		forceSync := c.Query("sync") == "true"
 
-		// Call phone API directly
-		client := phoneclient.NewClient(device)
-		items, err := client.QueryCalls(phoneclient.CallQueryRequest{
-			Type:        callType,
-			PageNum:     pageNum,
-			PageSize:    pageSize,
-			PhoneNumber: phoneNumber,
-		})
+		// Trigger sync
+		syncService := services.NewSyncService(engine)
+		var syncResult *services.SyncResult
+		if forceSync {
+			// Blocking sync
+			syncResult, _ = syncService.SyncCalls(device, callType)
+		} else {
+			// Background sync
+			go syncService.SyncCalls(device, callType)
+		}
+
+		// Query from database
+		repo := repository.NewCallRepository(engine)
+		items, total, err := repo.FindByDevice(device.ID, callType, pageNum, pageSize, phoneNumber)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"items": items})
+		response := gin.H{
+			"items": items,
+			"total": total,
+			"page":  pageNum,
+			"size":  pageSize,
+		}
+		if syncResult != nil {
+			response["sync"] = syncResult
+		}
+
+		c.JSON(http.StatusOK, response)
 	}
 }
 
-// QueryContacts queries contacts via phone's SmsForwarder API
+// QueryContacts queries contacts from local database with background sync
 func QueryContacts(engine *xorm.Engine) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceID := c.Param("id")
@@ -268,21 +304,37 @@ func QueryContacts(engine *xorm.Engine) gin.HandlerFunc {
 		}
 
 		// Parse query parameters
-		phoneNumber := c.Query("phone_number")
-		name := c.Query("name")
+		keyword := c.Query("keyword")
+		forceSync := c.Query("sync") == "true"
 
-		// Call phone API directly
-		client := phoneclient.NewClient(device)
-		items, err := client.QueryContacts(phoneclient.ContactQueryRequest{
-			PhoneNumber: phoneNumber,
-			Name:        name,
-		})
+		// Trigger sync
+		syncService := services.NewSyncService(engine)
+		var syncResult *services.SyncResult
+		if forceSync {
+			// Blocking sync
+			syncResult, _ = syncService.SyncContacts(device)
+		} else {
+			// Background sync
+			go syncService.SyncContacts(device)
+		}
+
+		// Query from database
+		repo := repository.NewContactRepository(engine)
+		items, total, err := repo.FindByDevice(device.ID, keyword)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"items": items})
+		response := gin.H{
+			"items": items,
+			"total": total,
+		}
+		if syncResult != nil {
+			response["sync"] = syncResult
+		}
+
+		c.JSON(http.StatusOK, response)
 	}
 }
 
@@ -418,5 +470,94 @@ func ClonePush(engine *xorm.Engine) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Configuration pushed successfully"})
+	}
+}
+
+// SyncSms manually triggers SMS sync from phone
+func SyncSms(engine *xorm.Engine) gin.HandlerFunc {
+	type syncRequest struct {
+		Type int `json:"type"` // 0=all, 1=received, 2=sent
+	}
+
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		var req syncRequest
+		c.ShouldBindJSON(&req) // Optional, defaults to 0
+
+		syncService := services.NewSyncService(engine)
+		result, err := syncService.SyncSms(device, req.Type)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
+// SyncCalls manually triggers call log sync from phone
+func SyncCalls(engine *xorm.Engine) gin.HandlerFunc {
+	type syncRequest struct {
+		Type int `json:"type"` // 0=all, 1=incoming, 2=outgoing, 3=missed
+	}
+
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		var req syncRequest
+		c.ShouldBindJSON(&req) // Optional, defaults to 0
+
+		syncService := services.NewSyncService(engine)
+		result, err := syncService.SyncCalls(device, req.Type)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
+// SyncContacts manually triggers contact sync from phone
+func SyncContacts(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		syncService := services.NewSyncService(engine)
+		result, err := syncService.SyncContacts(device)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
 	}
 }
