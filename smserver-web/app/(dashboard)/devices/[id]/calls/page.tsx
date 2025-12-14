@@ -30,6 +30,11 @@ import {
   PhoneMissed,
   RefreshCw,
   Clock,
+  PhoneOff,
+  Ban,
+  Voicemail,
+  Headphones,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function CallsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -55,31 +60,69 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
     fetchCalls();
   }, [resolvedParams.id, typeFilter]);
 
+  // Android CallLog.Calls TYPE constants + vendor-specific types
   const getCallTypeBadge = (type: number) => {
     switch (type) {
-      case 1:
+      case 1: // INCOMING_TYPE
         return (
           <Badge variant="secondary" className="gap-1 bg-green-100 text-green-700">
             <PhoneIncoming className="h-3 w-3" />
             Incoming
           </Badge>
         );
-      case 2:
+      case 2: // OUTGOING_TYPE
         return (
           <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-700">
             <PhoneOutgoing className="h-3 w-3" />
             Outgoing
           </Badge>
         );
-      case 3:
+      case 3: // MISSED_TYPE
         return (
           <Badge variant="secondary" className="gap-1 bg-red-100 text-red-700">
             <PhoneMissed className="h-3 w-3" />
             Missed
           </Badge>
         );
+      case 4: // VOICEMAIL_TYPE
+        return (
+          <Badge variant="secondary" className="gap-1 bg-purple-100 text-purple-700">
+            <Voicemail className="h-3 w-3" />
+            Voicemail
+          </Badge>
+        );
+      case 5: // REJECTED_TYPE
+        return (
+          <Badge variant="secondary" className="gap-1 bg-orange-100 text-orange-700">
+            <PhoneOff className="h-3 w-3" />
+            Rejected
+          </Badge>
+        );
+      case 6: // BLOCKED_TYPE
+        return (
+          <Badge variant="secondary" className="gap-1 bg-gray-100 text-gray-700">
+            <Ban className="h-3 w-3" />
+            Blocked
+          </Badge>
+        );
+      case 7: // ANSWERED_EXTERNALLY_TYPE
+        return (
+          <Badge variant="secondary" className="gap-1 bg-cyan-100 text-cyan-700">
+            <Headphones className="h-3 w-3" />
+            External
+          </Badge>
+        );
       default:
-        return <Badge variant="outline">{type}</Badge>;
+        // Vendor-specific types (e.g., MIUI uses 52 for spam interception)
+        if (type >= 50) {
+          return (
+            <Badge variant="secondary" className="gap-1 bg-yellow-100 text-yellow-700">
+              <ShieldAlert className="h-3 w-3" />
+              Intercepted
+            </Badge>
+          );
+        }
+        return <Badge variant="outline">Type {type}</Badge>;
     }
   };
 
