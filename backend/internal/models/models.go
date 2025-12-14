@@ -1,0 +1,85 @@
+package models
+
+import (
+	"time"
+)
+
+// User represents an admin user for the web panel.
+type User struct {
+	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
+	Username  string    `xorm:"unique notnull 'username'" json:"username"`
+	Password  string    `xorm:"varchar(255) notnull 'password'" json:"-"`
+	CreatedAt time.Time `xorm:"created" json:"created_at"`
+	UpdatedAt time.Time `xorm:"updated" json:"updated_at"`
+}
+
+// Device represents a client device (phone running SmsForwarder).
+// SMServer acts as client, phone acts as server.
+// PhoneAddr: phone's HTTP server address (e.g., "http://192.168.1.100:5000" or "http://smsf.demo.com")
+// SM4Key: user-provided SM4 encryption key from phone's SmsForwarder settings
+type Device struct {
+	ID         int64     `xorm:"pk autoincr 'id'" json:"id"`
+	Name       string    `xorm:"varchar(100) notnull 'name'" json:"name"`
+	PhoneAddr  string    `xorm:"varchar(255) notnull 'phone_addr'" json:"phone_addr"` // Phone HTTP server address
+	SM4Key     string    `xorm:"varchar(64) notnull 'sm4_key'" json:"sm4_key"`        // User-provided SM4 key (32 hex chars)
+	Status     string    `xorm:"varchar(32) 'status'" json:"status"`                  // online, offline
+	Battery    int       `xorm:"int 'battery'" json:"battery"`
+	Latitude   float64   `xorm:"double 'latitude'" json:"latitude"`
+	Longitude  float64   `xorm:"double 'longitude'" json:"longitude"`
+	SimInfo    string    `xorm:"text 'sim_info'" json:"sim_info"`
+	DeviceMark string    `xorm:"varchar(255) 'device_mark'" json:"device_mark"` // Extra device mark from SmsForwarder
+	ExtraSim1  string    `xorm:"varchar(255) 'extra_sim1'" json:"extra_sim1"`   // SIM1 info
+	ExtraSim2  string    `xorm:"varchar(255) 'extra_sim2'" json:"extra_sim2"`   // SIM2 info
+	LastSeen   time.Time `xorm:"'last_seen'" json:"last_seen"`
+	Remark     string    `xorm:"varchar(255) 'remark'" json:"remark"`
+	CreatedAt  time.Time `xorm:"created" json:"created_at"`
+}
+
+// SmsMessage stores SMS history per device.
+type SmsMessage struct {
+	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
+	DeviceID  int64     `xorm:"index notnull 'device_id'" json:"device_id"`
+	SmsID     int64     `xorm:"'sms_id'" json:"sms_id"`
+	Address   string    `xorm:"varchar(100) 'address'" json:"address"`
+	Body      string    `xorm:"text 'body'" json:"body"`
+	Direction string    `xorm:"varchar(20) 'direction'" json:"direction"` // inbound/outbound
+	Status    string    `xorm:"varchar(20) 'status'" json:"status"`
+	SmsTime   time.Time `xorm:"'sms_time'" json:"sms_time"`
+	CreatedAt time.Time `xorm:"created" json:"created_at"`
+}
+
+// CallLog stores call history.
+type CallLog struct {
+	ID         int64     `xorm:"pk autoincr 'id'" json:"id"`
+	DeviceID   int64     `xorm:"index notnull 'device_id'" json:"device_id"`
+	CallID     int64     `xorm:"'call_id'" json:"call_id"`
+	Number     string    `xorm:"varchar(40) 'number'" json:"number"`
+	Name       string    `xorm:"varchar(100) 'name'" json:"name"`
+	Type       string    `xorm:"varchar(20) 'type'" json:"type"` // incoming/outgoing/missed
+	Duration   int       `xorm:"int 'duration'" json:"duration"`
+	CallTime   time.Time `xorm:"'call_time'" json:"call_time"`
+	OccurredAt time.Time `xorm:"created 'occurred_at'" json:"occurred_at"`
+}
+
+// Contact represents a device contact entry.
+type Contact struct {
+	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
+	DeviceID  int64     `xorm:"index notnull 'device_id'" json:"device_id"`
+	Name      string    `xorm:"varchar(100) 'name'" json:"name"`
+	Phone     string    `xorm:"varchar(40) 'phone'" json:"phone"`
+	Email     string    `xorm:"varchar(120) 'email'" json:"email,omitempty"`
+	Note      string    `xorm:"varchar(255) 'note'" json:"note,omitempty"`
+	CreatedAt time.Time `xorm:"created" json:"created_at"`
+}
+
+// Command represents a task server asks device to execute.
+type Command struct {
+	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
+	DeviceID  int64     `xorm:"index notnull 'device_id'" json:"device_id"`
+	Type      string    `xorm:"varchar(40) 'type'" json:"type"`
+	Payload   string    `xorm:"text 'payload'" json:"payload"`
+	Status    string    `xorm:"varchar(20) 'status'" json:"status"` // pending, sent, done, failed
+	Result    string    `xorm:"text 'result'" json:"result"`
+	CreatedAt time.Time `xorm:"created" json:"created_at"`
+	UpdatedAt time.Time `xorm:"updated" json:"updated_at"`
+}
