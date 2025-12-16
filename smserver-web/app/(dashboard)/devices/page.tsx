@@ -49,6 +49,7 @@ export default function DevicesPage() {
   const [editForm, setEditForm] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '' });
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingDeviceId, setRefreshingDeviceId] = useState<number | null>(null);
 
   const fetchDevices = useCallback(async () => {
     setLoading(true);
@@ -71,6 +72,22 @@ export default function DevicesPage() {
       toast.error(res.error || 'Failed to refresh devices');
     }
     setRefreshing(false);
+  };
+
+  const refreshSingleDevice = async (deviceId: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setRefreshingDeviceId(deviceId);
+
+    const configRes = await api.getPhoneConfig(deviceId);
+    if (configRes.data) {
+      await fetchDevices();
+      toast.success('Device refreshed successfully');
+    } else {
+      toast.error(configRes.error || 'Failed to refresh device');
+    }
+
+    setRefreshingDeviceId(null);
   };
 
   useEffect(() => {
@@ -105,7 +122,15 @@ export default function DevicesPage() {
     if (res.data) {
       toast.success('Device added successfully');
       handleCloseDialog();
-      fetchDevices();
+
+      // Refresh device config and status immediately
+      const configRes = await api.getPhoneConfig(res.data.id);
+      if (configRes.error) {
+        toast.warning('Device added but failed to fetch config: ' + configRes.error);
+      }
+
+      // Refresh all devices to get latest status
+      await refreshDevices();
     } else {
       toast.error(res.error || 'Failed to create device');
     }
@@ -436,6 +461,16 @@ export default function DevicesPage() {
                     </CardTitle>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {getStatusBadge(device)}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => refreshSingleDevice(device.id, e)}
+                        disabled={refreshingDeviceId === device.id}
+                        title="Refresh device status"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${refreshingDeviceId === device.id ? 'animate-spin' : ''}`} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
