@@ -130,6 +130,16 @@ export interface Contact {
   created_at: string;
 }
 
+// SMS message with device info (for all-devices query)
+export interface SmsMessageWithDevice extends SmsMessage {
+  device_name: string;
+}
+
+// Call log with device info (for all-devices query)
+export interface CallLogWithDevice extends CallLog {
+  device_name: string;
+}
+
 // Sync result from backend
 export interface SyncResult {
   new_count: number;
@@ -245,6 +255,30 @@ export const api = {
   // Test connection and get phone config
   getPhoneConfig: (deviceId: string | number) =>
     request<PhoneConfig>(`/api/devices/${deviceId}/config`),
+
+  // All devices SMS - query from database
+  getAllSms: (type?: number, pageNum?: number, pageSize?: number, keyword?: string, deviceId?: number) => {
+    const params = new URLSearchParams();
+    if (type !== undefined) params.append('type', type.toString());
+    if (pageNum !== undefined) params.append('page_num', pageNum.toString());
+    if (pageSize !== undefined) params.append('page_size', pageSize.toString());
+    if (keyword) params.append('keyword', keyword);
+    if (deviceId) params.append('device_id', deviceId.toString());
+    const queryString = params.toString();
+    return request<PaginatedResponse<SmsMessageWithDevice>>(`/api/sms${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // All devices calls - query from database
+  getAllCalls: (type?: number, pageNum?: number, pageSize?: number, phoneNumber?: string, deviceId?: number) => {
+    const params = new URLSearchParams();
+    if (type !== undefined) params.append('type', type.toString());
+    if (pageNum !== undefined) params.append('page_num', pageNum.toString());
+    if (pageSize !== undefined) params.append('page_size', pageSize.toString());
+    if (phoneNumber) params.append('phone_number', phoneNumber);
+    if (deviceId) params.append('device_id', deviceId.toString());
+    const queryString = params.toString();
+    return request<PaginatedResponse<CallLogWithDevice>>(`/api/calls${queryString ? `?${queryString}` : ''}`);
+  },
 
   // SMS - query from database with background sync
   getDeviceSms: (deviceId: string | number, type?: number, pageNum?: number, pageSize?: number, keyword?: string, forceSync?: boolean) => {

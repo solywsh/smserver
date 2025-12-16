@@ -122,4 +122,15 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Adjust sidebar to start below header */
+  [data-slot="sidebar-container"] {
+    top: 3.5rem !important;
+    height: calc(100vh - 3.5rem) !important;
+  }
+
+  /* Make sidebar background consistent with main content */
+  [data-sidebar="sidebar"] {
+    background-color: var(--background) !important;
+  }
 }
