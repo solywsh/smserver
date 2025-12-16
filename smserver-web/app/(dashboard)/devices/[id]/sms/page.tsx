@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Dialog,
   DialogContent,
@@ -43,8 +44,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 
 export default function SmsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -59,9 +58,9 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
   const [sending, setSending] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<SmsMessage | null>(null);
-  const pageSize = 20;
 
   const fetchMessages = async (withSync = false) => {
     setLoading(true);
@@ -94,11 +93,16 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
 
   useEffect(() => {
     fetchMessages();
-  }, [resolvedParams.id, typeFilter, page]);
+  }, [resolvedParams.id, typeFilter, page, pageSize]);
 
   const handleSearch = () => {
     setPage(1);
     fetchMessages();
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
   };
 
   const handleSendSms = async () => {
@@ -151,8 +155,6 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
     if (simId === 1) return 'SIM 2';
     return '-';
   };
-
-  const totalPages = Math.ceil(total / pageSize);
 
   return (
     <div className="space-y-4">
@@ -318,34 +320,13 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                Page {page} of {totalPages} ({total} total)
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </CardContent>
       </Card>
 

@@ -6,6 +6,7 @@ import { api, CallLog, SyncResult } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Pagination } from '@/components/ui/pagination';
 import {
   Table,
   TableBody,
@@ -35,8 +36,6 @@ import {
   Voicemail,
   Headphones,
   ShieldAlert,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 
 export default function CallsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -47,8 +46,8 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
   const [typeFilter, setTypeFilter] = useState('0');
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
-  const pageSize = 20;
 
   const fetchCalls = async (withSync = false) => {
     setLoading(true);
@@ -81,7 +80,12 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
 
   useEffect(() => {
     fetchCalls();
-  }, [resolvedParams.id, typeFilter, page]);
+  }, [resolvedParams.id, typeFilter, page, pageSize]);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+  };
 
   // Android CallLog.Calls TYPE constants + vendor-specific types
   const getCallTypeBadge = (type: number) => {
@@ -167,8 +171,6 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
     if (simId === 1) return 'SIM 2';
     return '-';
   };
-
-  const totalPages = Math.ceil(total / pageSize);
 
   return (
     <div className="space-y-4">
@@ -256,34 +258,13 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                Page {page} of {totalPages} ({total} total)
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </CardContent>
       </Card>
     </div>
