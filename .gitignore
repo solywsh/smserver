@@ -65,5 +65,7 @@ next-env.d.ts
 .claude
 *.yaml
 CLAUDE.md
-docs/
 backend/smserver
+
+docs/smsforwarder_server_api_docs.md
+docs/smserver_api_docs.md
