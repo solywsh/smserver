@@ -101,3 +101,66 @@ func (r *SmsRepository) GetLatestSmsTime(deviceID int64, smsType int) (int64, er
 	}
 	return sms.SmsTime, nil
 }
+
+// SmsWithDevice represents an SMS message with device info.
+type SmsWithDevice struct {
+	models.SmsMessage `xorm:"extends"`
+	DeviceName        string `xorm:"'device_name'" json:"device_name"`
+}
+
+// FindAll returns SMS messages from all devices with pagination.
+// smsType: 0=all, 1=received, 2=sent
+func (r *SmsRepository) FindAll(smsType, page, pageSize int, keyword string, deviceID int64) ([]SmsWithDevice, int64, error) {
+	var items []SmsWithDevice
+
+	// Build count query
+	countSession := r.engine.Table("sms_message")
+	if deviceID > 0 {
+		countSession = countSession.Where("device_id = ?", deviceID)
+	}
+	if smsType > 0 {
+		countSession = countSession.And("type = ?", smsType)
+	}
+	if keyword != "" {
+		countSession = countSession.And("(address LIKE ? OR name LIKE ? OR body LIKE ?)",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// Get total count
+	total, err := countSession.Count(&models.SmsMessage{})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Build data query with JOIN
+	session := r.engine.Table("sms_message").
+		Join("LEFT", "device", "sms_message.device_id = device.id").
+		Select("sms_message.*, device.name as device_name")
+
+	if deviceID > 0 {
+		session = session.Where("sms_message.device_id = ?", deviceID)
+	}
+	if smsType > 0 {
+		session = session.And("sms_message.type = ?", smsType)
+	}
+	if keyword != "" {
+		session = session.And("(sms_message.address LIKE ? OR sms_message.name LIKE ? OR sms_message.body LIKE ?)",
+			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	}
+
+	// Apply pagination and ordering
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	err = session.Desc("sms_message.sms_time").Limit(pageSize, offset).Find(&items)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
+}

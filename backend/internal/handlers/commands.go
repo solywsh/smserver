@@ -561,3 +561,57 @@ func SyncContacts(engine *xorm.Engine) gin.HandlerFunc {
 		c.JSON(http.StatusOK, result)
 	}
 }
+
+// QueryAllSms queries SMS messages from all devices with pagination
+func QueryAllSms(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Parse query parameters
+		smsType, _ := strconv.Atoi(c.DefaultQuery("type", "0"))
+		pageNum, _ := strconv.Atoi(c.DefaultQuery("page_num", "1"))
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+		keyword := c.Query("keyword")
+		deviceID, _ := strconv.ParseInt(c.Query("device_id"), 10, 64)
+
+		// Query from database
+		repo := repository.NewSmsRepository(engine)
+		items, total, err := repo.FindAll(smsType, pageNum, pageSize, keyword, deviceID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": items,
+			"total": total,
+			"page":  pageNum,
+			"size":  pageSize,
+		})
+	}
+}
+
+// QueryAllCalls queries call logs from all devices with pagination
+func QueryAllCalls(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Parse query parameters
+		callType, _ := strconv.Atoi(c.DefaultQuery("type", "0"))
+		pageNum, _ := strconv.Atoi(c.DefaultQuery("page_num", "1"))
+		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+		phoneNumber := c.Query("phone_number")
+		deviceID, _ := strconv.ParseInt(c.Query("device_id"), 10, 64)
+
+		// Query from database
+		repo := repository.NewCallRepository(engine)
+		items, total, err := repo.FindAll(callType, pageNum, pageSize, phoneNumber, deviceID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": items,
+			"total": total,
+			"page":  pageNum,
+			"size":  pageSize,
+		})
+	}
+}

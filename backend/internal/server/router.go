@@ -25,6 +25,10 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 		api.GET("/profile", handlers.Profile(engine))
 		api.POST("/users/password", handlers.UpdatePassword(engine))
 
+		// All devices SMS and Calls
+		api.GET("/sms", handlers.QueryAllSms(engine))
+		api.GET("/calls", handlers.QueryAllCalls(engine))
+
 		// Device management
 		api.GET("/devices", handlers.ListDevices(engine))
 		api.POST("/devices", handlers.CreateDevice(engine))
