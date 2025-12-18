@@ -18,6 +18,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Plus,
@@ -39,14 +46,14 @@ export default function DevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newDevice, setNewDevice] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '' });
+  const [newDevice, setNewDevice] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '', pollingInterval: 0 });
   const [creating, setCreating] = useState(false);
   const [testing, setTesting] = useState(false);
 
   // Edit device state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '' });
+  const [editForm, setEditForm] = useState({ name: '', phoneAddr: '', sm4Key: '', remark: '', pollingInterval: 0 });
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshingDeviceId, setRefreshingDeviceId] = useState<number | null>(null);
@@ -117,7 +124,8 @@ export default function DevicesPage() {
       newDevice.name.trim(),
       newDevice.phoneAddr.trim(),
       newDevice.sm4Key.trim(),
-      newDevice.remark.trim() || undefined
+      newDevice.remark.trim() || undefined,
+      newDevice.pollingInterval
     );
     if (res.data) {
       toast.success('Device added successfully');
@@ -174,7 +182,7 @@ export default function DevicesPage() {
 
   const handleCloseDialog = () => {
     setDialogOpen(false);
-    setNewDevice({ name: '', phoneAddr: '', sm4Key: '', remark: '' });
+    setNewDevice({ name: '', phoneAddr: '', sm4Key: '', remark: '', pollingInterval: 0 });
   };
 
   const handleDeleteDevice = async (id: number, name: string) => {
@@ -199,6 +207,7 @@ export default function DevicesPage() {
       phoneAddr: device.phone_addr,
       sm4Key: device.sm4_key,
       remark: device.remark || '',
+      pollingInterval: device.polling_interval || 0,
     });
     setEditDialogOpen(true);
   };
@@ -228,6 +237,7 @@ export default function DevicesPage() {
       phone_addr: editForm.phoneAddr.trim(),
       sm4_key: editForm.sm4Key.trim(),
       remark: editForm.remark.trim(),
+      polling_interval: editForm.pollingInterval,
     });
     if (res.data) {
       toast.success('Device updated successfully');
@@ -400,6 +410,29 @@ export default function DevicesPage() {
                       onChange={(e) => setNewDevice({ ...newDevice, remark: e.target.value })}
                       rows={2}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="pollingInterval">Auto-Refresh Interval</Label>
+                    <Select
+                      value={newDevice.pollingInterval.toString()}
+                      onValueChange={(value) => setNewDevice({ ...newDevice, pollingInterval: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select interval" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Disabled</SelectItem>
+                        <SelectItem value="5">5 seconds</SelectItem>
+                        <SelectItem value="10">10 seconds</SelectItem>
+                        <SelectItem value="15">15 seconds</SelectItem>
+                        <SelectItem value="30">30 seconds</SelectItem>
+                        <SelectItem value="60">60 seconds</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Automatically sync SMS and calls from this device at the selected interval
+                    </p>
                   </div>
                 </div>
 
@@ -590,6 +623,29 @@ export default function DevicesPage() {
                 onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
                 rows={2}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-pollingInterval">Auto-Refresh Interval</Label>
+              <Select
+                value={editForm.pollingInterval.toString()}
+                onValueChange={(value) => setEditForm({ ...editForm, pollingInterval: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select interval" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Disabled</SelectItem>
+                  <SelectItem value="5">5 seconds</SelectItem>
+                  <SelectItem value="10">10 seconds</SelectItem>
+                  <SelectItem value="15">15 seconds</SelectItem>
+                  <SelectItem value="30">30 seconds</SelectItem>
+                  <SelectItem value="60">60 seconds</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Automatically sync SMS and calls from this device at the selected interval
+              </p>
             </div>
           </div>
           <DialogFooter>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { usePolling } from '@/contexts/polling-context';
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +18,7 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
+import { Badge } from '@/components/ui/badge';
 import {
   Smartphone,
   Settings,
@@ -55,6 +57,19 @@ const settingsSubItems = [
 export function AppSidebar() {
   const pathname = usePathname();
   const [settingsOpen, setSettingsOpen] = useState(pathname.startsWith('/settings'));
+  const { smsCount, callsCount, clearSmsCount, clearCallsCount } = usePolling();
+
+  const handleSmsClick = () => {
+    if (smsCount > 0) {
+      clearSmsCount();
+    }
+  };
+
+  const handleCallsClick = () => {
+    if (callsCount > 0) {
+      clearCallsCount();
+    }
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -64,16 +79,31 @@ export function AppSidebar() {
           <SidebarGroupLabel>General</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {generalNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={pathname === item.url || (item.url !== '/' && pathname.startsWith(item.url))}>
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {generalNavItems.map((item) => {
+                const isSms = item.title === 'SMS';
+                const isCalls = item.title === 'Calls';
+                const count = isSms ? smsCount : isCalls ? callsCount : 0;
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url || (item.url !== '/' && pathname.startsWith(item.url))}
+                      onClick={isSms ? handleSmsClick : isCalls ? handleCallsClick : undefined}
+                    >
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                        {count > 0 && (
+                          <Badge variant="destructive" className="ml-auto h-5 min-w-5 px-1 text-xs">
+                            {count > 99 ? '99+' : count}
+                          </Badge>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

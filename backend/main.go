@@ -12,10 +12,14 @@ import (
 	"backend/internal/server"
 	"backend/internal/tasks"
 
+	"github.com/gin-gonic/gin"
 	"xorm.io/xorm"
 )
 
 func main() {
+	// Set GIN to release mode to reduce logging
+	gin.SetMode(gin.ReleaseMode)
+
 	configPath := "config.yaml"
 	if path := os.Getenv("SM_SERVER_CONFIG"); path != "" {
 		configPath = path

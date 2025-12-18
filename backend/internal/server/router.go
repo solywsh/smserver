@@ -12,7 +12,9 @@ import (
 // Architecture: SMServer acts as client, phone (SmsForwarder) acts as server.
 // SMServer directly calls phone's HTTP API to query/control the phone.
 func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
-	r := gin.Default()
+	// Use gin.New() instead of gin.Default() to disable request logging
+	r := gin.New()
+	r.Use(gin.Recovery()) // Add recovery middleware only
 	r.Use(CORSMiddleware(cfg))
 
 	r.GET("/api/health", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })

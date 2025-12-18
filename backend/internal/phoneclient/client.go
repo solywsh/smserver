@@ -68,7 +68,8 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	log.Printf("[PhoneClient] %s request: %s", uri, string(reqBytes))
+	// Disabled verbose logging
+	// log.Printf("[PhoneClient] %s request: %s", uri, string(reqBytes))
 
 	encryptedReq, err := security.SM4EncryptHex(c.device.SM4Key, reqBytes)
 	if err != nil {
@@ -96,7 +97,8 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
-	log.Printf("[PhoneClient] %s response status: %d, body length: %d", uri, httpResp.StatusCode, len(respBody))
+	// Disabled verbose logging
+	// log.Printf("[PhoneClient] %s response status: %d, body length: %d", uri, httpResp.StatusCode, len(respBody))
 
 	// Decrypt response
 	decryptedResp, err := security.SM4DecryptHex(c.device.SM4Key, string(respBody))
@@ -105,7 +107,8 @@ func (c *Client) doRequest(uri string, data interface{}) (*Response, error) {
 		return nil, fmt.Errorf("decrypt response: %w", err)
 	}
 
-	log.Printf("[PhoneClient] %s decrypted response: %s", uri, string(decryptedResp)[:min(500, len(decryptedResp))])
+	// Disabled verbose logging
+	// log.Printf("[PhoneClient] %s decrypted response: %s", uri, string(decryptedResp)[:min(500, len(decryptedResp))])
 
 	// Parse response
 	var resp Response

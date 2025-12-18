@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, CallLog, SyncResult } from '@/lib/api';
+import { usePolling } from '@/contexts/polling-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,7 @@ import {
 export default function CallsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
+  const { onCallsUpdate } = usePolling();
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('0');
@@ -81,6 +83,17 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
   useEffect(() => {
     fetchCalls();
   }, [resolvedParams.id, typeFilter, page, pageSize]);
+
+  // Listen for Calls updates from polling
+  useEffect(() => {
+    const unsubscribe = onCallsUpdate((deviceId) => {
+      // Only refresh if this is the current device
+      if (deviceId === parseInt(resolvedParams.id)) {
+        fetchCalls(false); // Refresh without sync (already synced by polling)
+      }
+    });
+    return unsubscribe;
+  }, [resolvedParams.id, onCallsUpdate, typeFilter, page, pageSize]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);

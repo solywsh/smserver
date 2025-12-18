@@ -67,11 +67,9 @@ func (s *SyncService) syncSmsType(device *models.Device, smsType int) (*SyncResu
 	pageNum := 1
 	result := &SyncResult{}
 
-	log.Printf("[SyncSms] device %d type %d: starting sync", device.ID, smsType)
-
+	// Reduced logging: only log start and errors
 	for pageNum <= maxPages {
 		// Fetch from phone
-		log.Printf("[SyncSms] device %d type %d: fetching page %d", device.ID, smsType, pageNum)
 		items, err := client.QuerySms(phoneclient.SmsQueryRequest{
 			Type:     smsType,
 			PageNum:  pageNum,
@@ -81,8 +79,6 @@ func (s *SyncService) syncSmsType(device *models.Device, smsType int) (*SyncResu
 			log.Printf("[SyncSms] device %d type %d page %d error: %v", device.ID, smsType, pageNum, err)
 			return result, err
 		}
-
-		log.Printf("[SyncSms] device %d type %d page %d: got %d items", device.ID, smsType, pageNum, len(items))
 
 		// No more data
 		if len(items) == 0 {
@@ -116,8 +112,6 @@ func (s *SyncService) syncSmsType(device *models.Device, smsType int) (*SyncResu
 			}
 		}
 
-		log.Printf("[SyncSms] device %d type %d page %d: %d new, %d existing", device.ID, smsType, pageNum, len(newItems), existingCount)
-
 		// Save new items
 		if len(newItems) > 0 {
 			inserted, err := repo.InsertBatch(newItems)
@@ -125,14 +119,12 @@ func (s *SyncService) syncSmsType(device *models.Device, smsType int) (*SyncResu
 				log.Printf("[SyncSms] insert batch error: %v", err)
 			} else {
 				result.NewCount += int(inserted)
-				log.Printf("[SyncSms] device %d type %d: inserted %d records", device.ID, smsType, inserted)
 			}
 		}
 
 		// Stop only when ALL items in this page already exist (no new data to sync)
 		if len(newItems) == 0 {
 			result.IsComplete = true
-			log.Printf("[SyncSms] device %d type %d: all items in page %d exist, stopping sync", device.ID, smsType, pageNum)
 			break
 		}
 
@@ -140,7 +132,10 @@ func (s *SyncService) syncSmsType(device *models.Device, smsType int) (*SyncResu
 		pageNum++
 	}
 
-	log.Printf("[SyncSms] device %d type %d: sync complete, %d new messages", device.ID, smsType, result.NewCount)
+	// Only log if there were new messages
+	if result.NewCount > 0 {
+		log.Printf("[SyncSms] device %d type %d: synced %d new messages", device.ID, smsType, result.NewCount)
+	}
 	return result, nil
 }
 
@@ -157,11 +152,9 @@ func (s *SyncService) SyncCalls(device *models.Device, callType int) (*SyncResul
 	pageNum := 1
 	result := &SyncResult{}
 
-	log.Printf("[SyncCalls] device %d type %d: starting sync", device.ID, callType)
-
+	// Reduced logging: only log errors and final result
 	for pageNum <= maxPages {
 		// Fetch from phone
-		log.Printf("[SyncCalls] device %d type %d: fetching page %d", device.ID, callType, pageNum)
 		items, err := client.QueryCalls(phoneclient.CallQueryRequest{
 			Type:     callType,
 			PageNum:  pageNum,
@@ -171,8 +164,6 @@ func (s *SyncService) SyncCalls(device *models.Device, callType int) (*SyncResul
 			log.Printf("[SyncCalls] device %d type %d page %d error: %v", device.ID, callType, pageNum, err)
 			return result, err
 		}
-
-		log.Printf("[SyncCalls] device %d type %d page %d: got %d items", device.ID, callType, pageNum, len(items))
 
 		// No more data
 		if len(items) == 0 {
@@ -206,8 +197,6 @@ func (s *SyncService) SyncCalls(device *models.Device, callType int) (*SyncResul
 			}
 		}
 
-		log.Printf("[SyncCalls] device %d type %d page %d: %d new, %d existing", device.ID, callType, pageNum, len(newItems), existingCount)
-
 		// Save new items
 		if len(newItems) > 0 {
 			inserted, err := repo.InsertBatch(newItems)
@@ -215,14 +204,12 @@ func (s *SyncService) SyncCalls(device *models.Device, callType int) (*SyncResul
 				log.Printf("[SyncCalls] insert batch error: %v", err)
 			} else {
 				result.NewCount += int(inserted)
-				log.Printf("[SyncCalls] device %d type %d: inserted %d records", device.ID, callType, inserted)
 			}
 		}
 
 		// Stop only when ALL items in this page already exist (no new data to sync)
 		if len(newItems) == 0 {
 			result.IsComplete = true
-			log.Printf("[SyncCalls] device %d type %d: all items in page %d exist, stopping sync", device.ID, callType, pageNum)
 			break
 		}
 
@@ -230,7 +217,10 @@ func (s *SyncService) SyncCalls(device *models.Device, callType int) (*SyncResul
 		pageNum++
 	}
 
-	log.Printf("[SyncCalls] device %d type %d: sync complete, %d new calls", device.ID, callType, result.NewCount)
+	// Only log if there were new calls
+	if result.NewCount > 0 {
+		log.Printf("[SyncCalls] device %d type %d: synced %d new calls", device.ID, callType, result.NewCount)
+	}
 	return result, nil
 }
 
@@ -242,16 +232,12 @@ func (s *SyncService) SyncContacts(device *models.Device) (*SyncResult, error) {
 
 	result := &SyncResult{}
 
-	log.Printf("[SyncContacts] device %d: starting sync", device.ID)
-
 	// Fetch all contacts from phone
 	items, err := client.QueryContacts(phoneclient.ContactQueryRequest{})
 	if err != nil {
 		log.Printf("[SyncContacts] device %d error: %v", device.ID, err)
 		return result, err
 	}
-
-	log.Printf("[SyncContacts] device %d: got %d contacts from phone", device.ID, len(items))
 
 	for _, item := range items {
 		contact := &models.Contact{
@@ -274,6 +260,9 @@ func (s *SyncService) SyncContacts(device *models.Device) (*SyncResult, error) {
 	}
 
 	result.IsComplete = true
-	log.Printf("[SyncContacts] device %d: sync complete, %d new, %d updated", device.ID, result.NewCount, result.UpdatedCount)
+	// Only log if there were changes
+	if result.NewCount > 0 || result.UpdatedCount > 0 {
+		log.Printf("[SyncContacts] device %d: synced %d new, %d updated", device.ID, result.NewCount, result.UpdatedCount)
+	}
 	return result, nil
 }

@@ -73,6 +73,7 @@ export interface Device {
   device_mark: string;
   extra_sim1: string;
   extra_sim2: string;
+  polling_interval: number; // Polling interval in seconds (0=disabled, 5/10/15/30/60)
   last_seen: string;
   remark: string;
   created_at: string;
@@ -235,15 +236,15 @@ export const api = {
     method: 'POST',
   }),
 
-  createDevice: (name: string, phoneAddr: string, sm4Key: string, remark?: string) =>
+  createDevice: (name: string, phoneAddr: string, sm4Key: string, remark?: string, pollingInterval?: number) =>
     request<Device>('/api/devices', {
       method: 'POST',
-      body: JSON.stringify({ name, phone_addr: phoneAddr, sm4_key: sm4Key, remark }),
+      body: JSON.stringify({ name, phone_addr: phoneAddr, sm4_key: sm4Key, remark, polling_interval: pollingInterval }),
     }),
 
   getDevice: (id: string | number) => request<Device>(`/api/devices/${id}`),
 
-  updateDevice: (id: string | number, data: { name?: string; phone_addr?: string; sm4_key?: string; remark?: string }) =>
+  updateDevice: (id: string | number, data: { name?: string; phone_addr?: string; sm4_key?: string; remark?: string; polling_interval?: number }) =>
     request<Device>(`/api/devices/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

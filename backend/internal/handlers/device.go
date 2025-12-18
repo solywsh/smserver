@@ -12,10 +12,11 @@ import (
 )
 
 type CreateDeviceRequest struct {
-	Name      string `json:"name" binding:"required"`
-	PhoneAddr string `json:"phone_addr" binding:"required"` // Phone HTTP server address, e.g., "http://192.168.1.100:5000"
-	SM4Key    string `json:"sm4_key" binding:"required"`    // SM4 encryption key from phone (32 hex chars)
-	Remark    string `json:"remark"`
+	Name            string `json:"name" binding:"required"`
+	PhoneAddr       string `json:"phone_addr" binding:"required"` // Phone HTTP server address, e.g., "http://192.168.1.100:5000"
+	SM4Key          string `json:"sm4_key" binding:"required"`    // SM4 encryption key from phone (32 hex chars)
+	Remark          string `json:"remark"`
+	PollingInterval int    `json:"polling_interval"` // Polling interval in seconds (0=disabled, 5/10/15/30/60)
 }
 
 // ListDevices returns all registered devices.
@@ -46,13 +47,28 @@ func CreateDevice(engine *xorm.Engine) gin.HandlerFunc {
 			return
 		}
 
+		// Validate polling interval (must be 0 or one of: 5, 10, 15, 30, 60)
+		validIntervals := []int{0, 5, 10, 15, 30, 60}
+		validInterval := false
+		for _, v := range validIntervals {
+			if req.PollingInterval == v {
+				validInterval = true
+				break
+			}
+		}
+		if !validInterval {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Polling interval must be 0 (disabled) or one of: 5, 10, 15, 30, 60 seconds"})
+			return
+		}
+
 		device := models.Device{
-			Name:      req.Name,
-			PhoneAddr: req.PhoneAddr,
-			SM4Key:    req.SM4Key,
-			Status:    "unknown",
-			Remark:    req.Remark,
-			LastSeen:  time.Now(),
+			Name:            req.Name,
+			PhoneAddr:       req.PhoneAddr,
+			SM4Key:          req.SM4Key,
+			Status:          "unknown",
+			Remark:          req.Remark,
+			PollingInterval: req.PollingInterval,
+			LastSeen:        time.Now(),
 		}
 		if _, err := engine.Insert(&device); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -123,10 +139,11 @@ func DeviceDetail(engine *xorm.Engine) gin.HandlerFunc {
 
 // UpdateDeviceRequest represents the request to update a device
 type UpdateDeviceRequest struct {
-	Name      *string `json:"name"`
-	PhoneAddr *string `json:"phone_addr"`
-	SM4Key    *string `json:"sm4_key"`
-	Remark    *string `json:"remark"`
+	Name            *string `json:"name"`
+	PhoneAddr       *string `json:"phone_addr"`
+	SM4Key          *string `json:"sm4_key"`
+	Remark          *string `json:"remark"`
+	PollingInterval *int    `json:"polling_interval"`
 }
 
 // UpdateDevice updates device information (name, phone_addr, sm4_key, remark)
@@ -172,6 +189,23 @@ func UpdateDevice(engine *xorm.Engine) gin.HandlerFunc {
 		if req.Remark != nil {
 			device.Remark = *req.Remark
 			cols = append(cols, "remark")
+		}
+		if req.PollingInterval != nil {
+			// Validate polling interval
+			validIntervals := []int{0, 5, 10, 15, 30, 60}
+			validInterval := false
+			for _, v := range validIntervals {
+				if *req.PollingInterval == v {
+					validInterval = true
+					break
+				}
+			}
+			if !validInterval {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Polling interval must be 0 (disabled) or one of: 5, 10, 15, 30, 60 seconds"})
+				return
+			}
+			device.PollingInterval = *req.PollingInterval
+			cols = append(cols, "polling_interval")
 		}
 
 		if len(cols) == 0 {

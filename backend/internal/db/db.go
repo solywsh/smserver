@@ -27,7 +27,7 @@ func NewEngine(cfg *config.Config) (*xorm.Engine, error) {
 
 	engine.SetMaxOpenConns(cfg.Database.MaxOpen)
 	engine.SetMaxIdleConns(cfg.Database.MaxIdle)
-	engine.ShowSQL(true)
+	engine.ShowSQL(false) // Disable SQL logging to reduce console output
 	engine.TZLocation = time.Local
 
 	if err := engine.Sync(

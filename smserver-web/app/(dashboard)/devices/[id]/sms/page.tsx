@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, SmsMessage, SyncResult } from '@/lib/api';
+import { usePolling } from '@/contexts/polling-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +50,7 @@ import {
 export default function SmsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
+  const { onSmsUpdate } = usePolling();
   const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,6 +96,17 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
   useEffect(() => {
     fetchMessages();
   }, [resolvedParams.id, typeFilter, page, pageSize]);
+
+  // Listen for SMS updates from polling
+  useEffect(() => {
+    const unsubscribe = onSmsUpdate((deviceId) => {
+      // Only refresh if this is the current device
+      if (deviceId === parseInt(resolvedParams.id)) {
+        fetchMessages(false); // Refresh without sync (already synced by polling)
+      }
+    });
+    return unsubscribe;
+  }, [resolvedParams.id, onSmsUpdate, typeFilter, page, pageSize]);
 
   const handleSearch = () => {
     setPage(1);
