@@ -73,13 +73,17 @@ type CallLog struct {
 
 // Contact represents a device contact entry.
 // Unique constraint: (device_id, phone)
+// IsHidden: true for auto-created contacts from SMS/Calls (contact name = phone number)
+//
+//	false for contacts synced from device (real contact names)
 type Contact struct {
 	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
-	DeviceID  int64     `xorm:"index notnull 'device_id'" json:"device_id"`
+	DeviceID  int64     `xorm:"unique(device_contact_unique) index notnull 'device_id'" json:"device_id"`
 	Name      string    `xorm:"varchar(100) 'name'" json:"name"`
-	Phone     string    `xorm:"varchar(40) 'phone'" json:"phone"`
+	Phone     string    `xorm:"unique(device_contact_unique) varchar(40) 'phone'" json:"phone"`
 	Email     string    `xorm:"varchar(120) 'email'" json:"email,omitempty"`
 	Note      string    `xorm:"varchar(255) 'note'" json:"note,omitempty"`
+	IsHidden  bool      `xorm:"bool default(0) 'is_hidden'" json:"is_hidden"` // Hidden contact created from SMS/Calls
 	CreatedAt time.Time `xorm:"created" json:"created_at"`
 }
 

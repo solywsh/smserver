@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, SmsMessageWithDevice, Device } from '@/lib/api';
+import { SmsViewMode } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,8 +45,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ViewToggle } from '@/components/sms/ViewToggle';
+import { ConversationView } from '@/components/sms/ConversationView';
 
 export default function AllSmsPage() {
+  const searchParams = useSearchParams();
+  const viewMode = (searchParams.get('view') as SmsViewMode) || 'list';
+
   const [messages, setMessages] = useState<SmsMessageWithDevice[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +195,7 @@ export default function AllSmsPage() {
           <h1 className="text-2xl font-bold">All SMS Messages</h1>
           <p className="text-muted-foreground">View SMS messages from all devices</p>
         </div>
+        <ViewToggle currentView={viewMode} />
       </div>
 
       <Card>
@@ -227,6 +235,14 @@ export default function AllSmsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {viewMode === 'conversation' ? (
+            <ConversationView
+              messages={messages}
+              devices={devices}
+              onRefresh={fetchMessages}
+            />
+          ) : (
+            <>
           <div className="flex gap-2 mb-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -341,13 +357,15 @@ export default function AllSmsPage() {
             </div>
           )}
 
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onPageChange={setPage}
-            onPageSizeChange={handlePageSizeChange}
-          />
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            </>
+          )}
         </CardContent>
       </Card>
 

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, SmsMessage, SyncResult } from '@/lib/api';
+import { SmsViewMode } from '@/lib/types';
 import { usePolling } from '@/contexts/polling-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,11 +51,17 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ViewToggle } from '@/components/sms/ViewToggle';
+import { ConversationView } from '@/components/sms/ConversationView';
 
 export default function SmsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { onSmsUpdate } = usePolling();
+
+  // Get view mode from URL query parameter
+  const viewMode = (searchParams.get('view') as SmsViewMode) || 'list';
   const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -255,6 +262,7 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
           <h1 className="text-2xl font-bold">SMS Messages</h1>
           <p className="text-muted-foreground">View and send SMS through this phone</p>
         </div>
+        <ViewToggle currentView={viewMode} />
       </div>
 
       <Card>
@@ -365,6 +373,14 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
           </div>
         </CardHeader>
         <CardContent>
+          {viewMode === 'conversation' ? (
+            <ConversationView
+              messages={messages}
+              deviceId={parseInt(resolvedParams.id)}
+              onRefresh={() => fetchMessages(false)}
+            />
+          ) : (
+            <>
           <div className="flex gap-2 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -457,13 +473,15 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
             </div>
           )}
 
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onPageChange={setPage}
-            onPageSizeChange={handlePageSizeChange}
-          />
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={handlePageSizeChange}
+              />
+            </>
+          )}
         </CardContent>
       </Card>
 

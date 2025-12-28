@@ -45,36 +45,48 @@ func (r *CallRepository) InsertBatch(calls []*models.CallLog) (int64, error) {
 	return r.engine.Insert(&calls)
 }
 
+// CallWithContactName represents a call log with contact name from contact list.
+type CallWithContactName struct {
+	models.CallLog `xorm:"extends"`
+	ContactName    string `json:"contact_name"` // Name from contact list (overrides CallLog.Name)
+}
+
 // FindByDevice returns call logs for a device with pagination.
 // callType: 0=all, 1=incoming, 2=outgoing, 3=missed
-func (r *CallRepository) FindByDevice(deviceID int64, callType, page, pageSize int, phoneNumber string) ([]models.CallLog, int64, error) {
-	var items []models.CallLog
+// Uses contact name from contact list if available, otherwise falls back to CallLog.Name or "Unknown Number".
+func (r *CallRepository) FindByDevice(deviceID int64, callType, page, pageSize int, phoneNumber string) ([]CallWithContactName, int64, error) {
+	var items []CallWithContactName
 
-	session := r.engine.Where("device_id = ?", deviceID)
-
+	// Count query
+	countSession := r.engine.Table("call_log").Where("device_id = ?", deviceID)
 	if callType > 0 {
-		session = session.And("type = ?", callType)
+		countSession = countSession.And("type = ?", callType)
 	}
-
 	if phoneNumber != "" {
-		session = session.And("(number LIKE ? OR name LIKE ?)",
+		// Search in both call log name/number and contact name
+		countSession = countSession.And("(number LIKE ? OR name LIKE ?)",
 			"%"+phoneNumber+"%", "%"+phoneNumber+"%")
 	}
 
 	// Get total count
-	total, err := session.Count(&models.CallLog{})
+	total, err := countSession.Count(&models.CallLog{})
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Reset session for actual query
-	session = r.engine.Where("device_id = ?", deviceID)
+	// Data query with LEFT JOIN to contact table
+	session := r.engine.Table("call_log").
+		Join("LEFT", "contact", "call_log.device_id = contact.device_id AND call_log.number = contact.phone").
+		Select("call_log.*, COALESCE(contact.name, call_log.name, 'Unknown Number') as contact_name").
+		Where("call_log.device_id = ?", deviceID)
+
 	if callType > 0 {
-		session = session.And("type = ?", callType)
+		session = session.And("call_log.type = ?", callType)
 	}
 	if phoneNumber != "" {
-		session = session.And("(number LIKE ? OR name LIKE ?)",
-			"%"+phoneNumber+"%", "%"+phoneNumber+"%")
+		// Search in both call log name/number and contact name
+		session = session.And("(call_log.number LIKE ? OR call_log.name LIKE ? OR contact.name LIKE ?)",
+			"%"+phoneNumber+"%", "%"+phoneNumber+"%", "%"+phoneNumber+"%")
 	}
 
 	// Apply pagination and ordering
@@ -86,9 +98,14 @@ func (r *CallRepository) FindByDevice(deviceID int64, callType, page, pageSize i
 	}
 	offset := (page - 1) * pageSize
 
-	err = session.Desc("call_time").Limit(pageSize, offset).Find(&items)
+	err = session.Desc("call_log.call_time").Limit(pageSize, offset).Find(&items)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Update the Name field in each item to use ContactName
+	for i := range items {
+		items[i].Name = items[i].ContactName
 	}
 
 	return items, total, nil
@@ -111,14 +128,16 @@ func (r *CallRepository) GetLatestCallTime(deviceID int64, callType int) (int64,
 	return call.CallTime, nil
 }
 
-// CallWithDevice represents a call log with device info.
+// CallWithDevice represents a call log with device info and contact name.
 type CallWithDevice struct {
 	models.CallLog `xorm:"extends"`
 	DeviceName     string `xorm:"'device_name'" json:"device_name"`
+	ContactName    string `json:"contact_name"` // Name from contact list (overrides CallLog.Name)
 }
 
 // FindAll returns call logs from all devices with pagination.
 // callType: 0=all, 1=incoming, 2=outgoing, 3=missed
+// Uses contact name from contact list if available, otherwise falls back to CallLog.Name or "Unknown Number".
 func (r *CallRepository) FindAll(callType, page, pageSize int, phoneNumber string, deviceID int64) ([]CallWithDevice, int64, error) {
 	var items []CallWithDevice
 
@@ -141,10 +160,11 @@ func (r *CallRepository) FindAll(callType, page, pageSize int, phoneNumber strin
 		return nil, 0, err
 	}
 
-	// Build data query with JOIN
+	// Build data query with JOINs (device and contact)
 	session := r.engine.Table("call_log").
 		Join("LEFT", "device", "call_log.device_id = device.id").
-		Select("call_log.*, device.name as device_name")
+		Join("LEFT", "contact", "call_log.device_id = contact.device_id AND call_log.number = contact.phone").
+		Select("call_log.*, device.name as device_name, COALESCE(contact.name, call_log.name, 'Unknown Number') as contact_name")
 
 	if deviceID > 0 {
 		session = session.Where("call_log.device_id = ?", deviceID)
@@ -153,8 +173,8 @@ func (r *CallRepository) FindAll(callType, page, pageSize int, phoneNumber strin
 		session = session.And("call_log.type = ?", callType)
 	}
 	if phoneNumber != "" {
-		session = session.And("(call_log.number LIKE ? OR call_log.name LIKE ?)",
-			"%"+phoneNumber+"%", "%"+phoneNumber+"%")
+		session = session.And("(call_log.number LIKE ? OR call_log.name LIKE ? OR contact.name LIKE ?)",
+			"%"+phoneNumber+"%", "%"+phoneNumber+"%", "%"+phoneNumber+"%")
 	}
 
 	// Apply pagination and ordering
@@ -169,6 +189,11 @@ func (r *CallRepository) FindAll(callType, page, pageSize int, phoneNumber strin
 	err = session.Desc("call_log.call_time").Limit(pageSize, offset).Find(&items)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	// Update the Name field in each item to use ContactName
+	for i := range items {
+		items[i].Name = items[i].ContactName
 	}
 
 	return items, total, nil
