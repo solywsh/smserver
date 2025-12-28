@@ -595,11 +595,19 @@ func QueryAllSms(engine *xorm.Engine) gin.HandlerFunc {
 			return
 		}
 
+		// Get unread count with same filters
+		unreadCount, err := repo.CountUnread(smsType, deviceID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"items": items,
-			"total": total,
-			"page":  pageNum,
-			"size":  pageSize,
+			"items":        items,
+			"total":        total,
+			"unread_count": unreadCount,
+			"page":         pageNum,
+			"size":         pageSize,
 		})
 	}
 }
@@ -812,5 +820,26 @@ func DeleteMultipleCalls(engine *xorm.Engine) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Calls deleted successfully", "count": len(req.IDs)})
+	}
+}
+
+// MarkAllSmsAsReadGlobally marks all unread SMS messages as read across all devices
+func MarkAllSmsAsReadGlobally(engine *xorm.Engine) gin.HandlerFunc {
+	type markRequest struct {
+		Type     int   `json:"type"`      // 0=all, 1=received, 2=sent
+		DeviceID int64 `json:"device_id"` // 0=all devices
+	}
+
+	return func(c *gin.Context) {
+		var req markRequest
+		c.ShouldBindJSON(&req) // Optional, defaults to 0
+
+		repo := repository.NewSmsRepository(engine)
+		if err := repo.MarkAllAsReadGlobally(req.Type, req.DeviceID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "All messages marked as read"})
 	}
 }

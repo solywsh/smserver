@@ -224,6 +224,31 @@ func (r *SmsRepository) MarkAllAsRead(deviceID int64, smsType int) error {
 	return err
 }
 
+// MarkAllAsReadGlobally marks all unread SMS messages as read across all devices (optionally filtered by type and device).
+func (r *SmsRepository) MarkAllAsReadGlobally(smsType int, deviceID int64) error {
+	session := r.engine.Where("is_read = ?", false)
+	if deviceID > 0 {
+		session = session.And("device_id = ?", deviceID)
+	}
+	if smsType > 0 {
+		session = session.And("type = ?", smsType)
+	}
+	_, err := session.Cols("is_read").Update(&models.SmsMessage{IsRead: true})
+	return err
+}
+
+// CountUnread returns the total number of unread SMS messages (optionally filtered by type and device).
+func (r *SmsRepository) CountUnread(smsType int, deviceID int64) (int64, error) {
+	session := r.engine.Where("is_read = ?", false)
+	if deviceID > 0 {
+		session = session.And("device_id = ?", deviceID)
+	}
+	if smsType > 0 {
+		session = session.And("type = ?", smsType)
+	}
+	return session.Count(&models.SmsMessage{})
+}
+
 // Delete deletes a single SMS message by ID.
 func (r *SmsRepository) Delete(id int64) error {
 	_, err := r.engine.ID(id).Delete(&models.SmsMessage{})

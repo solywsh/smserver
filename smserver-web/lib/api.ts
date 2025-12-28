@@ -154,6 +154,7 @@ export interface SyncResult {
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
+  unread_count?: number; // Total unread count (not just current page)
   page: number;
   size: number;
   sync?: SyncResult;
@@ -386,6 +387,13 @@ export const api = {
     request<{ message: string }>(`/api/devices/${deviceId}/sms/mark-read`, {
       method: 'POST',
       body: JSON.stringify({ type: type || 0 }),
+    }),
+
+  // Mark all SMS as read globally (across all devices or specific device)
+  markAllSmsAsReadGlobally: (type?: number, deviceId?: number) =>
+    request<{ message: string }>(`/api/sms/mark-read-all`, {
+      method: 'POST',
+      body: JSON.stringify({ type: type || 0, device_id: deviceId || 0 }),
     }),
 
   // Mark calls as read

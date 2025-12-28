@@ -30,6 +30,7 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 		// All devices SMS and Calls
 		api.GET("/sms", handlers.QueryAllSms(engine))
 		api.POST("/sms/:id/read", handlers.MarkSmsAsRead(engine))
+		api.POST("/sms/mark-read-all", handlers.MarkAllSmsAsReadGlobally(engine)) // Mark all SMS as read (globally)
 		api.DELETE("/sms/:id", handlers.DeleteSms(engine))
 		api.POST("/sms/delete", handlers.DeleteMultipleSms(engine))
 		api.GET("/calls", handlers.QueryAllCalls(engine))

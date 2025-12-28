@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Pagination } from '@/components/ui/pagination';
 import {
   Dialog,
@@ -43,6 +45,9 @@ import {
   Smartphone,
   Circle,
   Trash2,
+  CheckCheck,
+  Send,
+  Loader2,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ViewToggle } from '@/components/sms/ViewToggle';
@@ -59,12 +64,17 @@ export default function AllSmsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('0');
   const [deviceFilter, setDeviceFilter] = useState<string>('0');
   const [total, setTotal] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0); // Total unread count from backend
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selectedMessage, setSelectedMessage] = useState<SmsMessageWithDevice | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [smsForm, setSmsForm] = useState({ deviceId: '', simSlot: '1', phoneNumbers: '', content: '' });
+  const [sending, setSending] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
 
   const fetchDevices = async () => {
     const res = await api.getDevices();
@@ -81,6 +91,7 @@ export default function AllSmsPage() {
     if (res.data) {
       setMessages(res.data.items || []);
       setTotal(res.data.total || 0);
+      setUnreadCount(res.data.unread_count || 0); // Get total unread count from backend
     } else {
       toast.error(res.error || 'Failed to fetch messages');
     }
@@ -184,7 +195,77 @@ export default function AllSmsPage() {
     }
   };
 
-  const unreadCount = messages.filter(m => !m.is_read).length;
+  const handleMarkSelectedAsRead = async () => {
+    if (selectedIds.length === 0) return;
+
+    setMarkingRead(true);
+    // Mark each selected message as read
+    const promises = selectedIds.map(id => api.markSmsAsRead(id));
+    const results = await Promise.all(promises);
+    setMarkingRead(false);
+
+    // Check if all succeeded
+    const allSucceeded = results.every(res => res.data);
+    if (allSucceeded) {
+      toast.success(`Marked ${selectedIds.length} message(s) as read`);
+      // Update local state
+      setMessages(messages.map(m =>
+        selectedIds.includes(m.id) ? { ...m, is_read: true } : m
+      ));
+      setSelectedIds([]);
+    } else {
+      toast.error('Failed to mark some messages as read');
+      fetchMessages();
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setMarkingRead(true);
+
+    // Use the global mark all as read API
+    const type = typeFilter === '0' ? undefined : parseInt(typeFilter);
+    const deviceId = deviceFilter === '0' ? undefined : parseInt(deviceFilter);
+
+    const res = await api.markAllSmsAsReadGlobally(type, deviceId);
+    setMarkingRead(false);
+
+    if (res.data) {
+      toast.success('All messages marked as read');
+      // Refresh to get updated unread count and message list
+      fetchMessages();
+    } else {
+      toast.error(res.error || 'Failed to mark messages as read');
+    }
+  };
+
+  const handleSendSms = async () => {
+    if (!smsForm.deviceId) {
+      toast.error('Please select a device');
+      return;
+    }
+    if (!smsForm.phoneNumbers.trim() || !smsForm.content.trim()) {
+      toast.error('Phone numbers and content are required');
+      return;
+    }
+    setSending(true);
+    const res = await api.sendSms(
+      smsForm.deviceId,
+      parseInt(smsForm.simSlot),
+      smsForm.phoneNumbers.trim(),
+      smsForm.content.trim()
+    );
+    if (res.data) {
+      toast.success('SMS sent successfully');
+      setSendDialogOpen(false);
+      setSmsForm({ deviceId: '', simSlot: '1', phoneNumbers: '', content: '' });
+      // Optionally refresh messages to see the sent message
+      fetchMessages();
+    } else {
+      toast.error(res.error || 'Failed to send SMS');
+    }
+    setSending(false);
+  };
+
   const allSelected = messages.length > 0 && selectedIds.length === messages.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < messages.length;
 
@@ -218,19 +299,57 @@ export default function AllSmsPage() {
             </div>
             <div className="flex items-center gap-2">
               {selectedIds.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMarkSelectedAsRead}
+                    disabled={markingRead}
+                    className="gap-2"
+                  >
+                    {markingRead ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                    Mark Read ({selectedIds.length})
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete ({selectedIds.length})
+                  </Button>
+                </>
+              )}
+              {selectedIds.length === 0 && unreadCount > 0 && (
                 <Button
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
+                  onClick={handleMarkAllAsRead}
+                  disabled={markingRead}
                   className="gap-2"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Delete ({selectedIds.length})
+                  {markingRead ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                  Mark All Read
                 </Button>
               )}
               <Button variant="outline" size="icon" onClick={fetchMessages} disabled={loading} title="Refresh">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
+              <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+                <Button
+                  onClick={() => {
+                    // Pre-select device if filtered
+                    if (deviceFilter !== '0') {
+                      setSmsForm({ ...smsForm, deviceId: deviceFilter });
+                    }
+                    setSendDialogOpen(true);
+                  }}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Send SMS
+                </Button>
+              </Dialog>
             </div>
           </div>
         </CardHeader>
@@ -435,6 +554,82 @@ export default function AllSmsPage() {
             </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send SMS Dialog */}
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send SMS</DialogTitle>
+            <DialogDescription>
+              Send an SMS message through a selected device.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Device</Label>
+              <Select
+                value={smsForm.deviceId}
+                onValueChange={(v) => setSmsForm({ ...smsForm, deviceId: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a device" />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map((device) => (
+                    <SelectItem key={device.id} value={device.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="h-3 w-3" />
+                        {device.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>SIM Card</Label>
+              <Select value={smsForm.simSlot} onValueChange={(v) => setSmsForm({ ...smsForm, simSlot: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">SIM 1</SelectItem>
+                  <SelectItem value="2">SIM 2</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumbers">Phone Numbers</Label>
+              <Input
+                id="phoneNumbers"
+                placeholder="15888888888;19999999999"
+                value={smsForm.phoneNumbers}
+                onChange={(e) => setSmsForm({ ...smsForm, phoneNumbers: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">Multiple numbers separated by semicolons</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="content">Message</Label>
+              <Textarea
+                id="content"
+                placeholder="Enter message content"
+                value={smsForm.content}
+                onChange={(e) => setSmsForm({ ...smsForm, content: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendSms} disabled={sending}>
+              {sending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Send
             </Button>
           </DialogFooter>
         </DialogContent>
