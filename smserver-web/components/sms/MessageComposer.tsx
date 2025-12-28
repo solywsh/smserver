@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Loader2, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -20,6 +19,7 @@ import { toast } from 'sonner';
 interface MessageComposerProps {
   address: string; // Target phone number
   deviceId?: number; // For device-specific page (optional)
+  device?: Device | null; // For device-specific page (optional)
   devices?: Device[]; // For global page (optional)
   onSent?: () => void; // Callback after message sent
   className?: string;
@@ -28,6 +28,7 @@ interface MessageComposerProps {
 export function MessageComposer({
   address,
   deviceId,
+  device,
   devices,
   onSent,
   className,
@@ -43,6 +44,9 @@ export function MessageComposer({
       setSelectedDeviceId(devices[0].id.toString());
     }
   }, [devices, selectedDeviceId]);
+
+  // Get current device (either from device-specific page or global page)
+  const currentDevice = device || devices?.find((d) => d.id === parseInt(selectedDeviceId));
 
   // Load last used SIM slot from localStorage
   useEffect(() => {
@@ -99,56 +103,62 @@ export function MessageComposer({
   };
 
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
+    <div className={cn('flex flex-col gap-2 p-3', className)}>
       {/* Settings row */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         {/* Device selection (only for global page) */}
         {devices && devices.length > 0 && (
-          <div className="flex items-center gap-2">
-            <Label htmlFor="device-select" className="text-sm whitespace-nowrap">
-              设备:
-            </Label>
-            <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-              <SelectTrigger id="device-select" className="w-[180px]">
-                <SelectValue placeholder="选择设备" />
-              </SelectTrigger>
-              <SelectContent>
-                {devices.map((device) => (
-                  <SelectItem key={device.id} value={device.id.toString()}>
-                    {device.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue placeholder="Select device" />
+            </SelectTrigger>
+            <SelectContent>
+              {devices.map((device) => (
+                <SelectItem key={device.id} value={device.id.toString()} className="text-xs">
+                  {device.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
 
         {/* SIM card selection */}
-        <div className="flex items-center gap-2">
-          <Label htmlFor="sim-select" className="text-sm whitespace-nowrap">
-            SIM卡:
-          </Label>
-          <Select value={simSlot} onValueChange={(v) => setSimSlot(v as '1' | '2')}>
-            <SelectTrigger id="sim-select" className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">SIM 1</SelectItem>
-              <SelectItem value="2">SIM 2</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={simSlot} onValueChange={(v) => setSimSlot(v as '1' | '2')}>
+          <SelectTrigger className="h-8 w-[90px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1" className="text-xs">SIM 1</SelectItem>
+            <SelectItem value="2" className="text-xs">SIM 2</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* SIM card info display */}
+        {currentDevice && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {simSlot === '1' && currentDevice.extra_sim1 && (
+              <span className="px-2 py-1 bg-secondary rounded">
+                {currentDevice.extra_sim1}
+              </span>
+            )}
+            {simSlot === '2' && currentDevice.extra_sim2 && (
+              <span className="px-2 py-1 bg-secondary rounded">
+                {currentDevice.extra_sim2}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Message input and send button */}
       <div className="flex gap-2">
         <Textarea
-          placeholder="输入消息内容... (Enter发送, Shift+Enter换行)"
+          placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={3}
-          className="flex-1 resize-none"
+          rows={2}
+          className="flex-1 resize-none text-sm"
           disabled={sending}
         />
         <Button
@@ -163,11 +173,6 @@ export function MessageComposer({
             <Send className="h-4 w-4" />
           )}
         </Button>
-      </div>
-
-      {/* Helper text */}
-      <div className="text-xs text-muted-foreground">
-        提示: Enter发送消息, Shift+Enter换行
       </div>
     </div>
   );

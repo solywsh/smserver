@@ -21,10 +21,10 @@ export function ConversationSidebar({
   onSelectConversation,
 }: ConversationSidebarProps) {
   return (
-    <div className="flex flex-col h-full border-r bg-background">
-      {/* Search bar */}
-      <div className="p-4 border-b">
-        <div className="relative">
+    <div className="flex flex-col h-full border-r bg-background overflow-hidden">
+      {/* Search bar - matching header height */}
+      <div className="p-4 border-b flex-shrink-0 h-[77px] flex items-center">
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
@@ -37,11 +37,13 @@ export function ConversationSidebar({
       </div>
 
       {/* Conversation list */}
-      <ConversationList
-        conversations={conversations}
-        activeConversation={activeConversation}
-        onSelectConversation={onSelectConversation}
-      />
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <ConversationList
+          conversations={conversations}
+          activeConversation={activeConversation}
+          onSelectConversation={onSelectConversation}
+        />
+      </div>
     </div>
   );
 }

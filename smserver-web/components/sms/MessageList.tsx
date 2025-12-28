@@ -24,7 +24,15 @@ export function MessageList({
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      // Use setTimeout to ensure DOM is fully updated
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'end',
+        });
+      }, 100);
+    }
   }, [messages]);
 
   if (messages.length === 0) {
@@ -39,8 +47,8 @@ export function MessageList({
   const messageGroups = groupMessagesByDate(messages as SmsMessage[]);
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollAreaRef}>
-      <div className="py-4 space-y-4">
+    <ScrollArea className="h-full" ref={scrollAreaRef}>
+      <div className="py-4 px-4 space-y-4">
         {messageGroups.map((group) => (
           <div key={group.date}>
             {/* Date header */}

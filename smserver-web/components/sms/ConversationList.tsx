@@ -24,7 +24,7 @@ export function ConversationList({
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="h-full">
       <div className="p-2 space-y-1">
         {conversations.map((conversation) => (
           <ConversationItem

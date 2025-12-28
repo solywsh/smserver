@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"backend/internal/models"
 	"backend/internal/phoneclient"
@@ -68,6 +71,76 @@ func SendSMS(engine *xorm.Engine) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		// After successful send, sync the sent message to avoid duplicate sync later
+		// Query recent sent messages (type=2) from phone
+		go func() {
+			// Use goroutine to avoid blocking the response
+			time.Sleep(1 * time.Second) // Wait 1 second for phone to save the message
+
+			items, err := client.QuerySms(phoneclient.SmsQueryRequest{
+				Type:     2, // Sent messages
+				PageNum:  1,
+				PageSize: 20, // Get recent 20 sent messages
+			})
+			if err != nil {
+				log.Printf("[SendSMS] failed to query sent messages after send: %v", err)
+				return
+			}
+
+			// Find matching message(s) by content and address
+			// Split phone numbers in case multiple were sent
+			phoneNumbers := strings.Split(req.PhoneNumbers, ";")
+			repo := repository.NewSmsRepository(engine)
+			contactRepo := repository.NewContactRepository(engine)
+
+			for _, phoneNum := range phoneNumbers {
+				phoneNum = strings.TrimSpace(phoneNum)
+				if phoneNum == "" {
+					continue
+				}
+
+				// Find the matching sent message
+				for _, item := range items {
+					if item.Number == phoneNum && item.Content == req.MsgContent && item.Type == 2 {
+						// Check if already exists
+						exists, err := repo.ExistsIncludingDeleted(device.ID, item.Number, item.Date, item.Type)
+						if err != nil {
+							log.Printf("[SendSMS] check exists error: %v", err)
+							continue
+						}
+
+						if !exists {
+							// Ensure hidden contact exists
+							_, err := contactRepo.EnsureHiddenContact(device.ID, item.Number, item.Name)
+							if err != nil {
+								log.Printf("[SendSMS] ensure hidden contact error: %v", err)
+							}
+
+							// Save to database with is_read=true (since user just sent it)
+							sms := &models.SmsMessage{
+								DeviceID: device.ID,
+								Address:  item.Number,
+								Name:     item.Name,
+								Body:     item.Content,
+								Type:     item.Type,
+								SimID:    item.SimID,
+								SmsTime:  item.Date,
+								IsRead:   true, // Mark as read since user sent it
+							}
+
+							err = repo.Insert(sms)
+							if err != nil {
+								log.Printf("[SendSMS] failed to insert sent message: %v", err)
+							} else {
+								log.Printf("[SendSMS] saved sent message to database: %s -> %s", device.Name, phoneNum)
+							}
+						}
+						break // Found the matching message
+					}
+				}
+			}
+		}()
 
 		c.JSON(http.StatusOK, gin.H{"message": "SMS sent successfully"})
 	}

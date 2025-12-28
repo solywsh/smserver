@@ -31,7 +31,7 @@ export function ConversationHeader({
   const firstLetter = conversation.contactName?.[0]?.toUpperCase() || '#';
 
   return (
-    <div className="flex items-center justify-between p-4 border-b bg-background">
+    <div className="flex items-center justify-between p-4 border-b bg-background h-[77px]">
       {/* Left: Contact info */}
       <div className="flex items-center gap-3">
         <Avatar className="h-10 w-10">

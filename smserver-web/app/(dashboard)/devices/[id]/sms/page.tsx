@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, SmsMessage, SyncResult } from '@/lib/api';
+import { api, SmsMessage, SyncResult, Device } from '@/lib/api';
 import { SmsViewMode } from '@/lib/types';
 import { usePolling } from '@/contexts/polling-context';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { ViewToggle } from '@/components/sms/ViewToggle';
 import { ConversationView } from '@/components/sms/ConversationView';
+import { PhoneNumberInput } from '@/components/sms/PhoneNumberInput';
 
 export default function SmsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -61,8 +62,9 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
   const { onSmsUpdate } = usePolling();
 
   // Get view mode from URL query parameter
-  const viewMode = (searchParams.get('view') as SmsViewMode) || 'list';
+  const viewMode = (searchParams.get('view') as SmsViewMode) || 'conversation';
   const [messages, setMessages] = useState<SmsMessage[]>([]);
+  const [device, setDevice] = useState<Device | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('0');
@@ -110,6 +112,12 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
 
   useEffect(() => {
     fetchMessages();
+    // Fetch device info
+    api.getDevice(resolvedParams.id).then((res) => {
+      if (res.data) {
+        setDevice(res.data);
+      }
+    });
   }, [resolvedParams.id, typeFilter, page, pageSize]);
 
   // Listen for SMS updates from polling
@@ -327,25 +335,40 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>SIM Card</Label>
-                      <Select value={smsForm.simSlot} onValueChange={(v) => setSmsForm({ ...smsForm, simSlot: v })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">SIM 1</SelectItem>
-                          <SelectItem value="2">SIM 2</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select value={smsForm.simSlot} onValueChange={(v) => setSmsForm({ ...smsForm, simSlot: v })}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">SIM 1</SelectItem>
+                            <SelectItem value="2">SIM 2</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {device && (
+                          <>
+                            {smsForm.simSlot === '1' && device.extra_sim1 && (
+                              <span className="px-3 py-2 bg-secondary rounded-md text-sm">
+                                {device.extra_sim1}
+                              </span>
+                            )}
+                            {smsForm.simSlot === '2' && device.extra_sim2 && (
+                              <span className="px-3 py-2 bg-secondary rounded-md text-sm">
+                                {device.extra_sim2}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phoneNumbers">Phone Numbers</Label>
-                      <Input
-                        id="phoneNumbers"
-                        placeholder="15888888888;19999999999"
+                      <PhoneNumberInput
                         value={smsForm.phoneNumbers}
-                        onChange={(e) => setSmsForm({ ...smsForm, phoneNumbers: e.target.value })}
+                        onChange={(v) => setSmsForm({ ...smsForm, phoneNumbers: v })}
+                        placeholder="Type phone number and press Enter or comma..."
                       />
-                      <p className="text-xs text-muted-foreground">Multiple numbers separated by semicolons</p>
+                      <p className="text-xs text-muted-foreground">Press Enter or type comma to add a number</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="content">Message</Label>
@@ -377,6 +400,7 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
             <ConversationView
               messages={messages}
               deviceId={parseInt(resolvedParams.id)}
+              device={device}
               onRefresh={() => fetchMessages(false)}
             />
           ) : (

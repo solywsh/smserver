@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 interface ConversationViewProps {
   messages: SmsMessage[] | SmsMessageWithDevice[];
   deviceId?: number; // For device-specific page
+  device?: Device | null; // For device-specific page
   devices?: Device[]; // For global page
   onRefresh?: () => void; // Callback to refresh messages
 }
@@ -22,6 +23,7 @@ interface ConversationViewProps {
 export function ConversationView({
   messages,
   deviceId,
+  device,
   devices,
   onRefresh,
 }: ConversationViewProps) {
@@ -42,30 +44,34 @@ export function ConversationView({
     }
   }, [messages, isGlobalMode, devices]);
 
+  // Determine how a conversation matches the search query
+  // Returns: 'content' | 'name' | 'none'
+  const getMatchType = (conv: Conversation | GlobalConversation, query: string): 'content' | 'name' | 'none' => {
+    if (!query) return 'none';
+
+    const lowerQuery = query.toLowerCase();
+    const conversationMessages = messages.filter((msg) => msg.address === conv.address);
+
+    // Check if any message content matches (higher priority)
+    const hasContentMatch = conversationMessages.some((msg) =>
+      msg.body.toLowerCase().includes(lowerQuery)
+    );
+    if (hasContentMatch) return 'content';
+
+    // Check if contact name or phone number matches
+    if (conv.contactName.toLowerCase().includes(lowerQuery) || conv.address.includes(query)) {
+      return 'name';
+    }
+
+    return 'none';
+  };
+
   // Filter conversations by search query
   const filteredConversations = useMemo(() => {
     if (!searchQuery) return allConversations;
 
-    const query = searchQuery.toLowerCase();
-
     return allConversations.filter((conv) => {
-      // Search contact name
-      if (conv.contactName.toLowerCase().includes(query)) {
-        return true;
-      }
-
-      // Search phone number
-      if (conv.address.includes(query)) {
-        return true;
-      }
-
-      // Search message content
-      const conversationMessages = messages.filter(
-        (msg) => msg.address === conv.address
-      );
-      return conversationMessages.some((msg) =>
-        msg.body.toLowerCase().includes(query)
-      );
+      return getMatchType(conv, searchQuery) !== 'none';
     });
   }, [allConversations, searchQuery, messages]);
 
@@ -77,11 +83,33 @@ export function ConversationView({
     );
   }, [activeConversation, allConversations]);
 
-  // Get messages for active conversation
+  // Get messages for active conversation (filtered by search if matched by content)
   const activeMessages = useMemo(() => {
     if (!activeConversation) return [];
-    return messages.filter((msg) => msg.address === activeConversation);
-  }, [activeConversation, messages]);
+
+    const allActiveMessages = messages.filter((msg) => msg.address === activeConversation);
+
+    // If no search query, show all messages
+    if (!searchQuery) return allActiveMessages;
+
+    // Find the conversation object
+    const conv = allConversations.find((c) => c.address === activeConversation);
+    if (!conv) return allActiveMessages;
+
+    // Determine match type
+    const matchType = getMatchType(conv, searchQuery);
+
+    // If matched by content, only show matching messages
+    if (matchType === 'content') {
+      const lowerQuery = searchQuery.toLowerCase();
+      return allActiveMessages.filter((msg) =>
+        msg.body.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    // If matched by name/phone, show all messages
+    return allActiveMessages;
+  }, [activeConversation, messages, searchQuery, allConversations]);
 
   // Create device map for global mode
   const deviceMap = useMemo(() => {
@@ -90,8 +118,26 @@ export function ConversationView({
   }, [isGlobalMode, devices]);
 
   // Handle conversation selection
-  const handleSelectConversation = (address: string) => {
+  const handleSelectConversation = async (address: string) => {
     setActiveConversation(address);
+
+    // Get messages for this conversation
+    const conversationMessages = messages.filter((msg) => msg.address === address);
+
+    // Find unread messages in this conversation
+    const unreadMessages = conversationMessages.filter((m) => !m.is_read);
+
+    // If there are unread messages, mark them as read silently
+    if (unreadMessages.length > 0) {
+      // Mark each message as read (no await, fire and forget)
+      const promises = unreadMessages.map((msg) => api.markSmsAsRead(msg.id));
+      Promise.all(promises).then(() => {
+        // Refresh after marking as read
+        onRefresh?.();
+      }).catch((err) => {
+        console.error('Failed to mark messages as read:', err);
+      });
+    }
   };
 
   // Handle delete conversation
@@ -169,9 +215,9 @@ export function ConversationView({
   };
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] rounded-lg border overflow-hidden">
+    <div className="flex h-[calc(100vh-18rem)] rounded-lg border overflow-hidden">
       {/* Left sidebar: Conversation list (30%) */}
-      <div className="w-[30%] min-w-[280px]">
+      <div className="w-[30%] min-w-[280px] h-full overflow-hidden">
         <ConversationSidebar
           conversations={filteredConversations}
           activeConversation={activeConversation}
@@ -182,11 +228,12 @@ export function ConversationView({
       </div>
 
       {/* Right panel: Conversation messages (70%) */}
-      <div className="flex-1">
+      <div className="flex-1 h-full overflow-hidden">
         <ConversationPanel
           conversation={activeConvObject}
           messages={activeMessages}
           deviceId={deviceId}
+          device={device}
           devices={devices}
           deviceMap={deviceMap}
           onDeleteConversation={handleDeleteConversation}

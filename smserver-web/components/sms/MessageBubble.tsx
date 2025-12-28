@@ -69,36 +69,41 @@ export function MessageBubble({
           isSent ? 'items-end' : 'items-start'
         )}
       >
-        {/* Contact name (for received messages) */}
+        {/* Contact name (for received messages) with optional device name */}
         {isReceived && message.name && (
-          <div className="text-xs font-medium mb-1 px-1">
-            {message.name}
+          <div className="flex items-center gap-2 mb-1 px-1">
+            <span className="text-xs font-medium">{message.name}</span>
+            {showDeviceName && deviceName && (
+              <span className="text-[10px] text-muted-foreground">
+                {deviceName}
+              </span>
+            )}
           </div>
         )}
 
-        {/* SIM card badge (for sent messages) */}
-        {isSent && message.sim_id >= 0 && (
-          <div className="mb-1">
-            <Badge
-              variant="outline"
-              className={cn(
-                'h-5 text-xs',
-                message.sim_id === 0
-                  ? 'border-blue-500 text-blue-700 dark:text-blue-400'
-                  : 'border-green-500 text-green-700 dark:text-green-400'
-              )}
-            >
-              {getSimLabel(message.sim_id)}
-            </Badge>
-          </div>
-        )}
-
-        {/* Device name (for global SMS page) */}
-        {showDeviceName && deviceName && (
-          <div className="mb-1">
-            <Badge variant="secondary" className="h-5 text-xs">
-              {deviceName}
-            </Badge>
+        {/* Device and SIM info (for sent messages) */}
+        {isSent && (showDeviceName && deviceName || message.sim_id >= 0) && (
+          <div className="flex items-center gap-2 mb-1">
+            {/* Device name */}
+            {showDeviceName && deviceName && (
+              <span className="text-[10px] text-muted-foreground px-1">
+                {deviceName}
+              </span>
+            )}
+            {/* SIM card badge (only if valid) */}
+            {message.sim_id >= 0 && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  'h-5 text-xs',
+                  message.sim_id === 0
+                    ? 'border-blue-500 text-blue-700 dark:text-blue-400'
+                    : 'border-green-500 text-green-700 dark:text-green-400'
+                )}
+              >
+                {getSimLabel(message.sim_id)}
+              </Badge>
+            )}
           </div>
         )}
 

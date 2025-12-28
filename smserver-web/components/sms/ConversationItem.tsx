@@ -29,14 +29,15 @@ export function ConversationItem({
     <div
       className={cn(
         'flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors',
-        'hover:bg-accent',
-        isActive && 'bg-accent'
+        isActive
+          ? 'bg-primary/10 hover:bg-primary/10 dark:bg-primary/15 dark:hover:bg-primary/15'
+          : 'hover:bg-accent/50'
       )}
       onClick={onClick}
     >
       {/* Avatar */}
       <Avatar className="h-12 w-12 flex-shrink-0">
-        <AvatarFallback className="text-lg">
+        <AvatarFallback className="text-lg bg-primary/15 text-primary dark:bg-primary/20">
           {firstLetter}
         </AvatarFallback>
       </Avatar>
@@ -89,7 +90,7 @@ export function ConversationItem({
                 <Badge
                   key={idx}
                   variant="secondary"
-                  className="h-5 text-xs"
+                  className="h-5 text-xs bg-primary/10 text-primary hover:bg-primary/15 dark:bg-primary/15 dark:hover:bg-primary/20"
                 >
                   {name}
                 </Badge>

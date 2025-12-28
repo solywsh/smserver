@@ -52,10 +52,11 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { ViewToggle } from '@/components/sms/ViewToggle';
 import { ConversationView } from '@/components/sms/ConversationView';
+import { PhoneNumberInput } from '@/components/sms/PhoneNumberInput';
 
 export default function AllSmsPage() {
   const searchParams = useSearchParams();
-  const viewMode = (searchParams.get('view') as SmsViewMode) || 'list';
+  const viewMode = (searchParams.get('view') as SmsViewMode) || 'conversation';
 
   const [messages, setMessages] = useState<SmsMessageWithDevice[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -592,25 +593,43 @@ export default function AllSmsPage() {
             </div>
             <div className="space-y-2">
               <Label>SIM Card</Label>
-              <Select value={smsForm.simSlot} onValueChange={(v) => setSmsForm({ ...smsForm, simSlot: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">SIM 1</SelectItem>
-                  <SelectItem value="2">SIM 2</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <Select value={smsForm.simSlot} onValueChange={(v) => setSmsForm({ ...smsForm, simSlot: v })}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">SIM 1</SelectItem>
+                    <SelectItem value="2">SIM 2</SelectItem>
+                  </SelectContent>
+                </Select>
+                {smsForm.deviceId && (() => {
+                  const selectedDevice = devices.find((d) => d.id.toString() === smsForm.deviceId);
+                  return selectedDevice && (
+                    <>
+                      {smsForm.simSlot === '1' && selectedDevice.extra_sim1 && (
+                        <span className="px-3 py-2 bg-secondary rounded-md text-sm">
+                          {selectedDevice.extra_sim1}
+                        </span>
+                      )}
+                      {smsForm.simSlot === '2' && selectedDevice.extra_sim2 && (
+                        <span className="px-3 py-2 bg-secondary rounded-md text-sm">
+                          {selectedDevice.extra_sim2}
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="phoneNumbers">Phone Numbers</Label>
-              <Input
-                id="phoneNumbers"
-                placeholder="15888888888;19999999999"
+              <PhoneNumberInput
                 value={smsForm.phoneNumbers}
-                onChange={(e) => setSmsForm({ ...smsForm, phoneNumbers: e.target.value })}
+                onChange={(v) => setSmsForm({ ...smsForm, phoneNumbers: v })}
+                placeholder="Type phone number and press Enter or comma..."
               />
-              <p className="text-xs text-muted-foreground">Multiple numbers separated by semicolons</p>
+              <p className="text-xs text-muted-foreground">Press Enter or type comma to add a number</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="content">Message</Label>

@@ -10,6 +10,7 @@ interface ConversationPanelProps {
   conversation: Conversation | GlobalConversation | null;
   messages: SmsMessage[] | SmsMessageWithDevice[];
   deviceId?: number; // For device-specific page
+  device?: Device | null; // For device-specific page
   devices?: Device[]; // For global page
   deviceMap?: Map<number, string>; // For global page
   onDeleteConversation?: () => void;
@@ -22,6 +23,7 @@ export function ConversationPanel({
   conversation,
   messages,
   deviceId,
+  device,
   devices,
   deviceMap,
   onDeleteConversation,
@@ -48,27 +50,32 @@ export function ConversationPanel({
   const showDeviceName = Boolean(devices && deviceMap);
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <ConversationHeader
-        conversation={conversation}
-        onDeleteConversation={onDeleteConversation}
-        onMarkAllRead={onMarkAllRead}
-      />
+    <div className="flex flex-col h-full bg-background overflow-hidden">
+      {/* Header - fixed at top */}
+      <div className="flex-shrink-0">
+        <ConversationHeader
+          conversation={conversation}
+          onDeleteConversation={onDeleteConversation}
+          onMarkAllRead={onMarkAllRead}
+        />
+      </div>
 
-      {/* Message list */}
-      <MessageList
-        messages={messages}
-        showDeviceName={showDeviceName}
-        deviceMap={deviceMap}
-        onDeleteMessage={onDeleteMessage}
-      />
+      {/* Message list - scrollable middle section */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <MessageList
+          messages={messages}
+          showDeviceName={showDeviceName}
+          deviceMap={deviceMap}
+          onDeleteMessage={onDeleteMessage}
+        />
+      </div>
 
-      {/* Composer */}
-      <div className="p-4 border-t bg-background">
+      {/* Composer - fixed at bottom */}
+      <div className="flex-shrink-0 border-t bg-background">
         <MessageComposer
           address={conversation.address}
           deviceId={deviceId}
+          device={device}
           devices={devices}
           onSent={onMessageSent}
         />
