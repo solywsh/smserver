@@ -1,0 +1,15 @@
+app:
+  addr: ":8080"
+  jwt_secret: "change-me"
+  sm4_key: ""
+  allow_origins:
+    - "*"
+  battery_sync_minutes: 5
+database:
+  driver: "mysql"
+  dsn: "root:@tcp(10.4.0.10:3306)/smserver?charset=utf8mb4&parseTime=True&loc=Local"
+  max_open: 10
+  max_idle: 2
+security:
+  default_admin_user: "admin"
+  default_admin_password: "admin123"

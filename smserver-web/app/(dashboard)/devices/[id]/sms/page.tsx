@@ -45,7 +45,11 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Loader2,
+  CheckCheck,
+  Circle,
+  Trash2,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function SmsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -63,6 +67,10 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
   const [pageSize, setPageSize] = useState(25);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<SmsMessage | null>(null);
+  const [markingRead, setMarkingRead] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchMessages = async (withSync = false) => {
     setLoading(true);
@@ -169,6 +177,74 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
     return '-';
   };
 
+  const handleMarkAllAsRead = async () => {
+    setMarkingRead(true);
+    const type = typeFilter === '0' ? undefined : parseInt(typeFilter);
+    const res = await api.markAllSmsAsRead(resolvedParams.id, type);
+    if (res.data) {
+      toast.success('All messages marked as read');
+      fetchMessages(false);
+    } else {
+      toast.error(res.error || 'Failed to mark as read');
+    }
+    setMarkingRead(false);
+  };
+
+  const handleMessageClick = async (msg: SmsMessage, e?: React.MouseEvent) => {
+    // Don't open detail if clicking checkbox
+    if (e && (e.target as HTMLElement).closest('[data-checkbox]')) {
+      return;
+    }
+
+    setSelectedMessage(msg);
+
+    // If message is unread, mark it as read
+    if (!msg.is_read) {
+      const res = await api.markSmsAsRead(msg.id);
+      if (res.data) {
+        // Update local state
+        setMessages(messages.map(m => m.id === msg.id ? { ...m, is_read: true } : m));
+      }
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(messages.map(m => m.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(sid => sid !== id));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (selectedIds.length === 0) return;
+
+    setDeleting(true);
+    const res = await api.deleteMultipleSms(selectedIds);
+    setDeleting(false);
+    setShowDeleteDialog(false);
+
+    if (res.data) {
+      toast.success(`Deleted ${selectedIds.length} message(s)`);
+      setSelectedIds([]);
+      fetchMessages();
+    } else {
+      toast.error(res.error || 'Failed to delete messages');
+    }
+  };
+
+  const unreadCount = messages.filter(m => !m.is_read).length;
+  const allSelected = messages.length > 0 && selectedIds.length === messages.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < messages.length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -191,12 +267,38 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
               </CardTitle>
               <CardDescription>
                 {total} messages total
+                {unreadCount > 0 && (
+                  <span className="ml-2 text-orange-600">({unreadCount} unread)</span>
+                )}
                 {syncResult && syncResult.new_count > 0 && (
                   <span className="ml-2 text-green-600">({syncResult.new_count} new synced)</span>
+                )}
+                {selectedIds.length > 0 && (
+                  <span className="ml-2 text-blue-600">({selectedIds.length} selected)</span>
                 )}
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {selectedIds.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete ({selectedIds.length})
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleMarkAllAsRead}
+                disabled={markingRead || unreadCount === 0}
+                title="Mark all as read"
+              >
+                {markingRead ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4" />}
+                Mark All Read
+              </Button>
               <Button variant="outline" size="icon" onClick={() => fetchMessages(true)} disabled={loading} title="Sync & Refresh">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
@@ -300,6 +402,14 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                        className={someSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                      />
+                    </TableHead>
                     <TableHead className="w-[100px]">Type</TableHead>
                     <TableHead className="w-[150px]">Number</TableHead>
                     <TableHead>Content</TableHead>
@@ -311,9 +421,16 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
                   {messages.map((msg) => (
                     <TableRow
                       key={msg.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedMessage(msg)}
+                      className={`cursor-pointer hover:bg-muted/50 ${!msg.is_read ? 'font-semibold' : ''}`}
+                      onClick={(e) => handleMessageClick(msg, e)}
                     >
+                      <TableCell onClick={(e) => e.stopPropagation()} data-checkbox>
+                        <Checkbox
+                          checked={selectedIds.includes(msg.id)}
+                          onCheckedChange={(checked) => handleSelectOne(msg.id, checked as boolean)}
+                          aria-label={`Select message ${msg.id}`}
+                        />
+                      </TableCell>
                       <TableCell>{getDirectionBadge(msg.type)}</TableCell>
                       <TableCell className="font-mono">
                         <div>
@@ -321,7 +438,14 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
                           {msg.name && <div className="text-xs text-muted-foreground">{msg.name}</div>}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-[400px] truncate">{msg.body}</TableCell>
+                      <TableCell className="max-w-[400px] truncate">
+                        <div className="flex items-center gap-2">
+                          {!msg.is_read && (
+                            <Circle className="h-2 w-2 fill-blue-500 text-blue-500 flex-shrink-0" />
+                          )}
+                          <span className="truncate">{msg.body}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{getSimLabel(msg.sim_id)}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(msg.sms_time)}
@@ -384,6 +508,27 @@ export default function SmsPage({ params }: { params: Promise<{ id: string }> })
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedMessage(null)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Messages</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedIds.length} message(s)? This action cannot be undone.
+              This will only delete messages from the server database, not from your device.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

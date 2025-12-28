@@ -392,7 +392,22 @@ func QueryConfig(engine *xorm.Engine) gin.HandlerFunc {
 		device.ExtraSim1 = config.ExtraSim1
 		device.ExtraSim2 = config.ExtraSim2
 		device.Status = "online"
-		engine.ID(device.ID).Cols("device_mark", "extra_sim1", "extra_sim2", "status", "last_seen").Update(device)
+
+		// Query battery if enabled
+		if config.EnableAPIBatteryQuery {
+			battery, err := client.QueryBattery()
+			if err == nil {
+				device.BatteryLevel = battery.Level
+				device.BatteryStatus = battery.Status
+				device.BatteryPlugged = battery.Plugged
+			}
+		}
+
+		// Update device with all info including battery
+		engine.ID(device.ID).Cols(
+			"device_mark", "extra_sim1", "extra_sim2", "status", "last_seen",
+			"battery_level", "battery_status", "battery_plugged",
+		).Update(device)
 
 		c.JSON(http.StatusOK, config)
 	}
@@ -613,5 +628,189 @@ func QueryAllCalls(engine *xorm.Engine) gin.HandlerFunc {
 			"page":  pageNum,
 			"size":  pageSize,
 		})
+	}
+}
+
+// MarkSmsAsRead marks a single SMS as read
+func MarkSmsAsRead(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid SMS id"})
+			return
+		}
+
+		repo := repository.NewSmsRepository(engine)
+		if err := repo.MarkAsRead(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "SMS marked as read"})
+	}
+}
+
+// MarkAllSmsAsRead marks all SMS messages as read for a device
+func MarkAllSmsAsRead(engine *xorm.Engine) gin.HandlerFunc {
+	type markRequest struct {
+		Type int `json:"type"` // 0=all, 1=received, 2=sent
+	}
+
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		var req markRequest
+		c.ShouldBindJSON(&req) // Optional, defaults to 0 (all)
+
+		repo := repository.NewSmsRepository(engine)
+		if err := repo.MarkAllAsRead(device.ID, req.Type); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "All SMS marked as read"})
+	}
+}
+
+// MarkCallAsRead marks a single call log as read
+func MarkCallAsRead(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid call id"})
+			return
+		}
+
+		repo := repository.NewCallRepository(engine)
+		if err := repo.MarkAsRead(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Call marked as read"})
+	}
+}
+
+// MarkAllCallsAsRead marks all call logs as read for a device
+func MarkAllCallsAsRead(engine *xorm.Engine) gin.HandlerFunc {
+	type markRequest struct {
+		Type int `json:"type"` // 0=all, 1=incoming, 2=outgoing, 3=missed
+	}
+
+	return func(c *gin.Context) {
+		deviceID := c.Param("id")
+		device, err := getDevice(engine, deviceID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid device id"})
+			return
+		}
+		if device == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "device not found"})
+			return
+		}
+
+		var req markRequest
+		c.ShouldBindJSON(&req) // Optional, defaults to 0 (all)
+
+		repo := repository.NewCallRepository(engine)
+		if err := repo.MarkAllAsRead(device.ID, req.Type); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "All calls marked as read"})
+	}
+}
+
+// DeleteSms deletes a single SMS message by ID
+func DeleteSms(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid SMS id"})
+			return
+		}
+
+		repo := repository.NewSmsRepository(engine)
+		if err := repo.Delete(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "SMS deleted successfully"})
+	}
+}
+
+// DeleteMultipleSms deletes multiple SMS messages by IDs
+func DeleteMultipleSms(engine *xorm.Engine) gin.HandlerFunc {
+	type deleteRequest struct {
+		IDs []int64 `json:"ids" binding:"required"`
+	}
+
+	return func(c *gin.Context) {
+		var req deleteRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		repo := repository.NewSmsRepository(engine)
+		if err := repo.DeleteBatch(req.IDs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "SMS deleted successfully", "count": len(req.IDs)})
+	}
+}
+
+// DeleteCall deletes a single call log by ID
+func DeleteCall(engine *xorm.Engine) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid call id"})
+			return
+		}
+
+		repo := repository.NewCallRepository(engine)
+		if err := repo.Delete(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Call deleted successfully"})
+	}
+}
+
+// DeleteMultipleCalls deletes multiple call logs by IDs
+func DeleteMultipleCalls(engine *xorm.Engine) gin.HandlerFunc {
+	type deleteRequest struct {
+		IDs []int64 `json:"ids" binding:"required"`
+	}
+
+	return func(c *gin.Context) {
+		var req deleteRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		repo := repository.NewCallRepository(engine)
+		if err := repo.DeleteBatch(req.IDs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Calls deleted successfully", "count": len(req.IDs)})
 	}
 }

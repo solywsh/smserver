@@ -29,7 +29,13 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 
 		// All devices SMS and Calls
 		api.GET("/sms", handlers.QueryAllSms(engine))
+		api.POST("/sms/:id/read", handlers.MarkSmsAsRead(engine))
+		api.DELETE("/sms/:id", handlers.DeleteSms(engine))
+		api.POST("/sms/delete", handlers.DeleteMultipleSms(engine))
 		api.GET("/calls", handlers.QueryAllCalls(engine))
+		api.POST("/calls/:id/read", handlers.MarkCallAsRead(engine))
+		api.DELETE("/calls/:id", handlers.DeleteCall(engine))
+		api.POST("/calls/delete", handlers.DeleteMultipleCalls(engine))
 
 		// Device management
 		api.GET("/devices", handlers.ListDevices(engine))
@@ -44,13 +50,15 @@ func NewRouter(cfg *config.Config, engine *xorm.Engine) *gin.Engine {
 		api.GET("/devices/:id/config", handlers.QueryConfig(engine))
 
 		// SMS operations
-		api.GET("/devices/:id/sms", handlers.QuerySms(engine))      // Query SMS from database with sync
-		api.POST("/devices/:id/sms/send", handlers.SendSMS(engine)) // Send SMS via phone
-		api.POST("/devices/:id/sms/sync", handlers.SyncSms(engine)) // Manual sync SMS from phone
+		api.GET("/devices/:id/sms", handlers.QuerySms(engine))                    // Query SMS from database with sync
+		api.POST("/devices/:id/sms/send", handlers.SendSMS(engine))               // Send SMS via phone
+		api.POST("/devices/:id/sms/sync", handlers.SyncSms(engine))               // Manual sync SMS from phone
+		api.POST("/devices/:id/sms/mark-read", handlers.MarkAllSmsAsRead(engine)) // Mark all SMS as read
 
 		// Call logs
-		api.GET("/devices/:id/calls", handlers.QueryCalls(engine))      // Query calls from database with sync
-		api.POST("/devices/:id/calls/sync", handlers.SyncCalls(engine)) // Manual sync calls from phone
+		api.GET("/devices/:id/calls", handlers.QueryCalls(engine))                    // Query calls from database with sync
+		api.POST("/devices/:id/calls/sync", handlers.SyncCalls(engine))               // Manual sync calls from phone
+		api.POST("/devices/:id/calls/mark-read", handlers.MarkAllCallsAsRead(engine)) // Mark all calls as read
 
 		// Contacts
 		api.GET("/devices/:id/contacts", handlers.QueryContacts(engine))      // Query contacts from database with sync

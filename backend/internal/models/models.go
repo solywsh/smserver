@@ -42,29 +42,33 @@ type Device struct {
 // SmsMessage stores SMS history per device.
 // Unique constraint: (device_id, address, sms_time, type)
 type SmsMessage struct {
-	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
-	DeviceID  int64     `xorm:"unique(device_sms_unique) index notnull 'device_id'" json:"device_id"`
-	Address   string    `xorm:"unique(device_sms_unique) varchar(100) 'address'" json:"address"` // Phone number
-	Name      string    `xorm:"varchar(100) 'name'" json:"name"`                                 // Contact name
-	Body      string    `xorm:"text 'body'" json:"body"`                                         // SMS content
-	Type      int       `xorm:"unique(device_sms_unique) int 'type'" json:"type"`                // 1=received, 2=sent
-	SimID     int       `xorm:"int 'sim_id'" json:"sim_id"`                                      // 0=SIM1, 1=SIM2, -1=unknown
-	SmsTime   int64     `xorm:"unique(device_sms_unique) bigint 'sms_time'" json:"sms_time"`     // Timestamp in milliseconds
-	CreatedAt time.Time `xorm:"created" json:"created_at"`
+	ID        int64      `xorm:"pk autoincr 'id'" json:"id"`
+	DeviceID  int64      `xorm:"unique(device_sms_unique) index notnull 'device_id'" json:"device_id"`
+	Address   string     `xorm:"unique(device_sms_unique) varchar(100) 'address'" json:"address"` // Phone number
+	Name      string     `xorm:"varchar(100) 'name'" json:"name"`                                 // Contact name
+	Body      string     `xorm:"text 'body'" json:"body"`                                         // SMS content
+	Type      int        `xorm:"unique(device_sms_unique) int 'type'" json:"type"`                // 1=received, 2=sent
+	SimID     int        `xorm:"int 'sim_id'" json:"sim_id"`                                      // 0=SIM1, 1=SIM2, -1=unknown
+	SmsTime   int64      `xorm:"unique(device_sms_unique) bigint 'sms_time'" json:"sms_time"`     // Timestamp in milliseconds
+	IsRead    bool       `xorm:"bool default(0) 'is_read'" json:"is_read"`                        // Read status
+	DeletedAt *time.Time `xorm:"deleted index" json:"deleted_at,omitempty"`                       // Soft delete timestamp
+	CreatedAt time.Time  `xorm:"created" json:"created_at"`
 }
 
 // CallLog stores call history.
 // Unique constraint: (device_id, number, call_time, type)
 type CallLog struct {
-	ID        int64     `xorm:"pk autoincr 'id'" json:"id"`
-	DeviceID  int64     `xorm:"unique(device_call_unique) index notnull 'device_id'" json:"device_id"`
-	Number    string    `xorm:"unique(device_call_unique) varchar(40) 'number'" json:"number"`
-	Name      string    `xorm:"varchar(100) 'name'" json:"name"`
-	Type      int       `xorm:"unique(device_call_unique) int 'type'" json:"type"`              // 1=incoming, 2=outgoing, 3=missed
-	Duration  int       `xorm:"int 'duration'" json:"duration"`                                 // Duration in seconds
-	SimID     int       `xorm:"int 'sim_id'" json:"sim_id"`                                     // 0=SIM1, 1=SIM2, -1=unknown
-	CallTime  int64     `xorm:"unique(device_call_unique) bigint 'call_time'" json:"call_time"` // Timestamp in milliseconds
-	CreatedAt time.Time `xorm:"created" json:"created_at"`
+	ID        int64      `xorm:"pk autoincr 'id'" json:"id"`
+	DeviceID  int64      `xorm:"unique(device_call_unique) index notnull 'device_id'" json:"device_id"`
+	Number    string     `xorm:"unique(device_call_unique) varchar(40) 'number'" json:"number"`
+	Name      string     `xorm:"varchar(100) 'name'" json:"name"`
+	Type      int        `xorm:"unique(device_call_unique) int 'type'" json:"type"`              // 1=incoming, 2=outgoing, 3=missed
+	Duration  int        `xorm:"int 'duration'" json:"duration"`                                 // Duration in seconds
+	SimID     int        `xorm:"int 'sim_id'" json:"sim_id"`                                     // 0=SIM1, 1=SIM2, -1=unknown
+	CallTime  int64      `xorm:"unique(device_call_unique) bigint 'call_time'" json:"call_time"` // Timestamp in milliseconds
+	IsRead    bool       `xorm:"bool default(0) 'is_read'" json:"is_read"`                       // Read status
+	DeletedAt *time.Time `xorm:"deleted index" json:"deleted_at,omitempty"`                      // Soft delete timestamp
+	CreatedAt time.Time  `xorm:"created" json:"created_at"`
 }
 
 // Contact represents a device contact entry.

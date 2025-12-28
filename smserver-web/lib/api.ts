@@ -104,6 +104,7 @@ export interface SmsMessage {
   type: number;       // 1=received, 2=sent
   sim_id: number;     // 0=SIM1, 1=SIM2, -1=unknown
   sms_time: number;   // timestamp in milliseconds
+  is_read: boolean;   // read status
   created_at: string;
 }
 
@@ -117,6 +118,7 @@ export interface CallLog {
   duration: number;   // seconds
   sim_id: number;     // 0=SIM1, 1=SIM2, -1=unknown
   call_time: number;  // timestamp in milliseconds
+  is_read: boolean;   // read status
   created_at: string;
 }
 
@@ -372,5 +374,53 @@ export const api = {
     request<{ message: string }>(`/api/devices/${deviceId}/clone/push`, {
       method: 'POST',
       body: JSON.stringify(config),
+    }),
+
+  // Mark SMS as read
+  markSmsAsRead: (id: number) =>
+    request<{ message: string }>(`/api/sms/${id}/read`, {
+      method: 'POST',
+    }),
+
+  markAllSmsAsRead: (deviceId: string | number, type?: number) =>
+    request<{ message: string }>(`/api/devices/${deviceId}/sms/mark-read`, {
+      method: 'POST',
+      body: JSON.stringify({ type: type || 0 }),
+    }),
+
+  // Mark calls as read
+  markCallAsRead: (id: number) =>
+    request<{ message: string }>(`/api/calls/${id}/read`, {
+      method: 'POST',
+    }),
+
+  markAllCallsAsRead: (deviceId: string | number, type?: number) =>
+    request<{ message: string }>(`/api/devices/${deviceId}/calls/mark-read`, {
+      method: 'POST',
+      body: JSON.stringify({ type: type || 0 }),
+    }),
+
+  // Delete SMS
+  deleteSms: (id: number) =>
+    request<{ message: string }>(`/api/sms/${id}`, {
+      method: 'DELETE',
+    }),
+
+  deleteMultipleSms: (ids: number[]) =>
+    request<{ message: string; count: number }>(`/api/sms/delete`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+
+  // Delete Calls
+  deleteCall: (id: number) =>
+    request<{ message: string }>(`/api/calls/${id}`, {
+      method: 'DELETE',
+    }),
+
+  deleteMultipleCalls: (ids: number[]) =>
+    request<{ message: string; count: number }>(`/api/calls/delete`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
     }),
 };

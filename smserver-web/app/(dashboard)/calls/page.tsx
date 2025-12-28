@@ -38,7 +38,18 @@ import {
   Headphones,
   ShieldAlert,
   Smartphone,
+  Circle,
+  Trash2,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function AllCallsPage() {
   const [calls, setCalls] = useState<CallLogWithDevice[]>([]);
@@ -50,6 +61,9 @@ export default function AllCallsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchDevices = async () => {
     const res = await api.getDevices();
@@ -175,6 +189,54 @@ export default function AllCallsPage() {
     return '-';
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(calls.map(c => c.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(sid => sid !== id));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (selectedIds.length === 0) return;
+
+    setDeleting(true);
+    const res = await api.deleteMultipleCalls(selectedIds);
+    setDeleting(false);
+    setShowDeleteDialog(false);
+
+    if (res.data) {
+      toast.success(`Deleted ${selectedIds.length} call(s)`);
+      setSelectedIds([]);
+      fetchCalls();
+    } else {
+      toast.error(res.error || 'Failed to delete calls');
+    }
+  };
+
+  const handleCallClick = async (call: CallLogWithDevice) => {
+    // If call is unread, mark it as read
+    if (!call.is_read) {
+      const res = await api.markCallAsRead(call.id);
+      if (res.data) {
+        // Update local state
+        setCalls(calls.map(c => c.id === call.id ? { ...c, is_read: true } : c));
+      }
+    }
+  };
+
+  const unreadCount = calls.filter(c => !c.is_read).length;
+  const allSelected = calls.length > 0 && selectedIds.length === calls.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < calls.length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -194,11 +256,30 @@ export default function AllCallsPage() {
               </CardTitle>
               <CardDescription>
                 {total} calls total
+                {unreadCount > 0 && (
+                  <span className="ml-2 text-orange-600">({unreadCount} unread)</span>
+                )}
+                {selectedIds.length > 0 && (
+                  <span className="ml-2 text-blue-600">({selectedIds.length} selected)</span>
+                )}
               </CardDescription>
             </div>
-            <Button variant="outline" size="icon" onClick={fetchCalls} disabled={loading} title="Refresh">
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-2">
+              {selectedIds.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete ({selectedIds.length})
+                </Button>
+              )}
+              <Button variant="outline" size="icon" onClick={fetchCalls} disabled={loading} title="Refresh">
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -251,6 +332,14 @@ export default function AllCallsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                        className={someSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                      />
+                    </TableHead>
                     <TableHead className="w-[120px]">Device</TableHead>
                     <TableHead className="w-[120px]">Type</TableHead>
                     <TableHead className="w-[150px]">Number</TableHead>
@@ -262,7 +351,14 @@ export default function AllCallsPage() {
                 </TableHeader>
                 <TableBody>
                   {calls.map((call) => (
-                    <TableRow key={call.id}>
+                    <TableRow key={call.id} className={`cursor-pointer hover:bg-muted/50 ${!call.is_read ? 'font-semibold' : ''}`} onClick={() => handleCallClick(call)}>
+                      <TableCell onClick={(e) => e.stopPropagation()} data-checkbox>
+                        <Checkbox
+                          checked={selectedIds.includes(call.id)}
+                          onCheckedChange={(checked) => handleSelectOne(call.id, checked as boolean)}
+                          aria-label={`Select call ${call.id}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <Link
                           href={`/devices/${call.device_id}`}
@@ -273,7 +369,14 @@ export default function AllCallsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>{getCallTypeBadge(call.type)}</TableCell>
-                      <TableCell className="font-mono">{call.number}</TableCell>
+                      <TableCell className="font-mono">
+                        <div className="flex items-center gap-2">
+                          {!call.is_read && (
+                            <Circle className="h-2 w-2 fill-blue-500 text-blue-500 flex-shrink-0" />
+                          )}
+                          <span>{call.number}</span>
+                        </div>
+                      </TableCell>
                       <TableCell>{call.name || '-'}</TableCell>
                       <TableCell className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
@@ -299,6 +402,27 @@ export default function AllCallsPage() {
           />
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Calls</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedIds.length} call(s)? This action cannot be undone.
+              This will only delete calls from the server database, not from your device.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

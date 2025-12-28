@@ -63,7 +63,7 @@ next-env.d.ts
 
 .idea
 .claude
-*.yaml
+backend/config.yaml
 CLAUDE.md
 backend/smserver
 

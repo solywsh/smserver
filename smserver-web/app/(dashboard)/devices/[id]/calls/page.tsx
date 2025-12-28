@@ -37,7 +37,20 @@ import {
   Voicemail,
   Headphones,
   ShieldAlert,
+  CheckCheck,
+  Circle,
+  Loader2,
+  Trash2,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function CallsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -50,6 +63,10 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [markingRead, setMarkingRead] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCalls = async (withSync = false) => {
     setLoading(true);
@@ -74,6 +91,15 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
     if (res.data) {
       setCalls(res.data.items || []);
       setTotal(res.data.total || 0);
+
+      // Automatically mark all calls as read in backend when viewing the list
+      // But don't update UI - let user refresh to see the change
+      const unreadCalls = (res.data.items || []).filter(call => !call.is_read);
+      if (unreadCalls.length > 0) {
+        const markType = typeFilter === '0' ? undefined : parseInt(typeFilter);
+        api.markAllCallsAsRead(resolvedParams.id, markType);
+        // Note: intentionally NOT updating local state here
+      }
     } else {
       toast.error(res.error || 'Failed to fetch call logs');
     }
@@ -185,6 +211,67 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
     return '-';
   };
 
+  const handleMarkAllAsRead = async () => {
+    setMarkingRead(true);
+    const type = typeFilter === '0' ? undefined : parseInt(typeFilter);
+    const res = await api.markAllCallsAsRead(resolvedParams.id, type);
+    if (res.data) {
+      toast.success('All calls marked as read');
+      setCalls(prevCalls => prevCalls.map(c => ({ ...c, is_read: true })));
+    } else {
+      toast.error(res.error || 'Failed to mark as read');
+    }
+    setMarkingRead(false);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(calls.map(c => c.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(sid => sid !== id));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (selectedIds.length === 0) return;
+
+    setDeleting(true);
+    const res = await api.deleteMultipleCalls(selectedIds);
+    setDeleting(false);
+    setShowDeleteDialog(false);
+
+    if (res.data) {
+      toast.success(`Deleted ${selectedIds.length} call(s)`);
+      setSelectedIds([]);
+      fetchCalls();
+    } else {
+      toast.error(res.error || 'Failed to delete calls');
+    }
+  };
+
+  const handleCallClick = async (call: CallLog) => {
+    // If call is unread, mark it as read
+    if (!call.is_read) {
+      const res = await api.markCallAsRead(call.id);
+      if (res.data) {
+        // Update local state
+        setCalls(calls.map(c => c.id === call.id ? { ...c, is_read: true } : c));
+      }
+    }
+  };
+
+  const unreadCount = calls.filter(c => !c.is_read).length;
+  const allSelected = calls.length > 0 && selectedIds.length === calls.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < calls.length;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -207,12 +294,38 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
               </CardTitle>
               <CardDescription>
                 {total} calls total
+                {unreadCount > 0 && (
+                  <span className="ml-2 text-orange-600">({unreadCount} unread)</span>
+                )}
                 {syncResult && syncResult.new_count > 0 && (
                   <span className="ml-2 text-green-600">({syncResult.new_count} new synced)</span>
+                )}
+                {selectedIds.length > 0 && (
+                  <span className="ml-2 text-blue-600">({selectedIds.length} selected)</span>
                 )}
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {selectedIds.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete ({selectedIds.length})
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={handleMarkAllAsRead}
+                disabled={markingRead || unreadCount === 0}
+                title="Mark all as read"
+              >
+                {markingRead ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCheck className="mr-2 h-4 w-4" />}
+                Mark All Read
+              </Button>
               <Button variant="outline" size="icon" onClick={() => fetchCalls(true)} disabled={loading} title="Sync & Refresh">
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
@@ -242,6 +355,14 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                        className={someSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                      />
+                    </TableHead>
                     <TableHead className="w-[120px]">Type</TableHead>
                     <TableHead className="w-[150px]">Number</TableHead>
                     <TableHead>Name</TableHead>
@@ -252,9 +373,23 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
                 </TableHeader>
                 <TableBody>
                   {calls.map((call) => (
-                    <TableRow key={call.id}>
+                    <TableRow key={call.id} className={`cursor-pointer hover:bg-muted/50 ${!call.is_read ? 'font-semibold' : ''}`} onClick={() => handleCallClick(call)}>
+                      <TableCell onClick={(e) => e.stopPropagation()} data-checkbox>
+                        <Checkbox
+                          checked={selectedIds.includes(call.id)}
+                          onCheckedChange={(checked) => handleSelectOne(call.id, checked as boolean)}
+                          aria-label={`Select call ${call.id}`}
+                        />
+                      </TableCell>
                       <TableCell>{getCallTypeBadge(call.type)}</TableCell>
-                      <TableCell className="font-mono">{call.number}</TableCell>
+                      <TableCell className="font-mono">
+                        <div className="flex items-center gap-2">
+                          {!call.is_read && (
+                            <Circle className="h-2 w-2 fill-blue-500 text-blue-500 flex-shrink-0" />
+                          )}
+                          <span>{call.number}</span>
+                        </div>
+                      </TableCell>
                       <TableCell>{call.name || '-'}</TableCell>
                       <TableCell className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
@@ -280,6 +415,27 @@ export default function CallsPage({ params }: { params: Promise<{ id: string }> 
           />
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Calls</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedIds.length} call(s)? This action cannot be undone.
+              This will only delete calls from the server database, not from your device.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

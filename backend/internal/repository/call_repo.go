@@ -16,9 +16,18 @@ func NewCallRepository(engine *xorm.Engine) *CallRepository {
 	return &CallRepository{engine: engine}
 }
 
-// Exists checks if a call record exists by unique key.
+// Exists checks if a call record exists by unique key (excluding soft-deleted records).
 func (r *CallRepository) Exists(deviceID int64, number string, callTime int64, callType int) (bool, error) {
+	// XORM's 'deleted' tag automatically filters out soft-deleted records
 	return r.engine.Where("device_id = ? AND number = ? AND call_time = ? AND type = ?",
+		deviceID, number, callTime, callType).Exist(&models.CallLog{})
+}
+
+// ExistsIncludingDeleted checks if a call record exists by unique key, including soft-deleted records.
+// This is critical for sync: if a record was soft-deleted, we should not re-sync it.
+func (r *CallRepository) ExistsIncludingDeleted(deviceID int64, number string, callTime int64, callType int) (bool, error) {
+	// Use Unscoped() to include soft-deleted records in the check
+	return r.engine.Unscoped().Where("device_id = ? AND number = ? AND call_time = ? AND type = ?",
 		deviceID, number, callTime, callType).Exist(&models.CallLog{})
 }
 
@@ -163,4 +172,44 @@ func (r *CallRepository) FindAll(callType, page, pageSize int, phoneNumber strin
 	}
 
 	return items, total, nil
+}
+
+// MarkAsRead marks a single call as read.
+func (r *CallRepository) MarkAsRead(id int64) error {
+	_, err := r.engine.ID(id).Cols("is_read").Update(&models.CallLog{IsRead: true})
+	return err
+}
+
+// MarkMultipleAsRead marks multiple call logs as read.
+func (r *CallRepository) MarkMultipleAsRead(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.engine.In("id", ids).Cols("is_read").Update(&models.CallLog{IsRead: true})
+	return err
+}
+
+// MarkAllAsRead marks all call logs as read for a device (optionally filtered by type).
+func (r *CallRepository) MarkAllAsRead(deviceID int64, callType int) error {
+	session := r.engine.Where("device_id = ?", deviceID)
+	if callType > 0 {
+		session = session.And("type = ?", callType)
+	}
+	_, err := session.Cols("is_read").Update(&models.CallLog{IsRead: true})
+	return err
+}
+
+// Delete deletes a single call log by ID.
+func (r *CallRepository) Delete(id int64) error {
+	_, err := r.engine.ID(id).Delete(&models.CallLog{})
+	return err
+}
+
+// DeleteBatch deletes multiple call logs by IDs.
+func (r *CallRepository) DeleteBatch(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.engine.In("id", ids).Delete(&models.CallLog{})
+	return err
 }

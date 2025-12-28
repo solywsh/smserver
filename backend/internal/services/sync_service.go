@@ -90,8 +90,9 @@ func (s *SyncService) syncSmsType(device *models.Device, smsType int) (*SyncResu
 		existingCount := 0
 
 		for _, item := range items {
-			// Check if exists
-			exists, err := repo.Exists(device.ID, item.Number, item.Date, item.Type)
+			// Check if exists (including soft-deleted records)
+			// This prevents re-syncing messages that user has deleted
+			exists, err := repo.ExistsIncludingDeleted(device.ID, item.Number, item.Date, item.Type)
 			if err != nil {
 				log.Printf("[SyncSms] check exists error: %v", err)
 				continue
@@ -175,8 +176,9 @@ func (s *SyncService) SyncCalls(device *models.Device, callType int) (*SyncResul
 		existingCount := 0
 
 		for _, item := range items {
-			// Check if exists
-			exists, err := repo.Exists(device.ID, item.Number, item.DateLong, item.Type)
+			// Check if exists (including soft-deleted records)
+			// This prevents re-syncing calls that user has deleted
+			exists, err := repo.ExistsIncludingDeleted(device.ID, item.Number, item.DateLong, item.Type)
 			if err != nil {
 				log.Printf("[SyncCalls] check exists error: %v", err)
 				continue

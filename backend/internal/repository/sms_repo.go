@@ -16,9 +16,18 @@ func NewSmsRepository(engine *xorm.Engine) *SmsRepository {
 	return &SmsRepository{engine: engine}
 }
 
-// Exists checks if an SMS record exists by unique key.
+// Exists checks if an SMS record exists by unique key (excluding soft-deleted records).
 func (r *SmsRepository) Exists(deviceID int64, address string, smsTime int64, smsType int) (bool, error) {
+	// XORM's 'deleted' tag automatically filters out soft-deleted records
 	return r.engine.Where("device_id = ? AND address = ? AND sms_time = ? AND type = ?",
+		deviceID, address, smsTime, smsType).Exist(&models.SmsMessage{})
+}
+
+// ExistsIncludingDeleted checks if an SMS record exists by unique key, including soft-deleted records.
+// This is critical for sync: if a record was soft-deleted, we should not re-sync it.
+func (r *SmsRepository) ExistsIncludingDeleted(deviceID int64, address string, smsTime int64, smsType int) (bool, error) {
+	// Use Unscoped() to include soft-deleted records in the check
+	return r.engine.Unscoped().Where("device_id = ? AND address = ? AND sms_time = ? AND type = ?",
 		deviceID, address, smsTime, smsType).Exist(&models.SmsMessage{})
 }
 
@@ -163,4 +172,44 @@ func (r *SmsRepository) FindAll(smsType, page, pageSize int, keyword string, dev
 	}
 
 	return items, total, nil
+}
+
+// MarkAsRead marks a single SMS as read.
+func (r *SmsRepository) MarkAsRead(id int64) error {
+	_, err := r.engine.ID(id).Cols("is_read").Update(&models.SmsMessage{IsRead: true})
+	return err
+}
+
+// MarkMultipleAsRead marks multiple SMS messages as read.
+func (r *SmsRepository) MarkMultipleAsRead(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.engine.In("id", ids).Cols("is_read").Update(&models.SmsMessage{IsRead: true})
+	return err
+}
+
+// MarkAllAsRead marks all SMS messages as read for a device (optionally filtered by type).
+func (r *SmsRepository) MarkAllAsRead(deviceID int64, smsType int) error {
+	session := r.engine.Where("device_id = ?", deviceID)
+	if smsType > 0 {
+		session = session.And("type = ?", smsType)
+	}
+	_, err := session.Cols("is_read").Update(&models.SmsMessage{IsRead: true})
+	return err
+}
+
+// Delete deletes a single SMS message by ID.
+func (r *SmsRepository) Delete(id int64) error {
+	_, err := r.engine.ID(id).Delete(&models.SmsMessage{})
+	return err
+}
+
+// DeleteBatch deletes multiple SMS messages by IDs.
+func (r *SmsRepository) DeleteBatch(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.engine.In("id", ids).Delete(&models.SmsMessage{})
+	return err
 }
