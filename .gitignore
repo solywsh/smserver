@@ -22,8 +22,10 @@
 go.work
 go.work.sum
 
-# env file
+# env files
 .env
+.env.local
+.env.production
 
 ### NextJS template
 # dependencies

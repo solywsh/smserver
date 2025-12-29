@@ -1,0 +1,17 @@
+app:
+  addr: ":8080"
+  jwt_secret: "CHANGE_THIS_TO_A_SECURE_RANDOM_STRING"
+  allow_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+
+database:
+  driver: "mysql"
+  # Docker Compose service name
+  dsn: "smserver:smserver123@tcp(mysql:3306)/smserver?charset=utf8mb4&parseTime=True&loc=Local"
+  max_open: 10
+  max_idle: 2
+
+security:
+  default_admin_user: "admin"
+  default_admin_password: "admin123"

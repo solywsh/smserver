@@ -1,0 +1,208 @@
+# Example Kubernetes deployment for SMServer
+# This demonstrates using environment variables for configuration
+# Adjust namespace, resources, and values according to your needs
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smserver
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: smserver-secrets
+  namespace: smserver
+type: Opaque
+stringData:
+  jwt-secret: "change-this-to-a-secure-random-string"
+  admin-password: "change-this-secure-password"
+  db-password: "mysql-password-here"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smserver-config
+  namespace: smserver
+data:
+  APP_ADDR: ":8080"
+  ALLOW_ORIGINS: "http://your-domain.com,https://your-domain.com"
+  DATABASE_DRIVER: "mysql"
+  DATABASE_MAX_OPEN: "10"
+  DATABASE_MAX_IDLE: "2"
+  ADMIN_USER: "admin"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smserver
+  namespace: smserver
+  labels:
+    app: smserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smserver
+  template:
+    metadata:
+      labels:
+        app: smserver
+    spec:
+      containers:
+      - name: smserver
+        image: smserver:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: backend
+          containerPort: 8080
+          protocol: TCP
+        - name: frontend
+          containerPort: 3000
+          protocol: TCP
+        env:
+        # Frontend configuration
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://your-domain.com:8080"
+
+        # Backend configuration from ConfigMap
+        - name: SM_APP_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: smserver-config
+              key: APP_ADDR
+        - name: SM_APP_ALLOW_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: smserver-config
+              key: ALLOW_ORIGINS
+        - name: SM_DATABASE_DRIVER
+          valueFrom:
+            configMapKeyRef:
+              name: smserver-config
+              key: DATABASE_DRIVER
+        - name: SM_DATABASE_MAX_OPEN
+          valueFrom:
+            configMapKeyRef:
+              name: smserver-config
+              key: DATABASE_MAX_OPEN
+        - name: SM_DATABASE_MAX_IDLE
+          valueFrom:
+            configMapKeyRef:
+              name: smserver-config
+              key: DATABASE_MAX_IDLE
+        - name: SM_SECURITY_DEFAULT_ADMIN_USER
+          valueFrom:
+            configMapKeyRef:
+              name: smserver-config
+              key: ADMIN_USER
+
+        # Backend configuration from Secret
+        - name: SM_APP_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: smserver-secrets
+              key: jwt-secret
+        - name: SM_SECURITY_DEFAULT_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smserver-secrets
+              key: admin-password
+        - name: SM_DATABASE_DSN
+          value: "smserver:$(DB_PASSWORD)@tcp(mysql:3306)/smserver?charset=utf8mb4&parseTime=True&loc=Local"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: smserver-secrets
+              key: db-password
+
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smserver-backend
+  namespace: smserver
+spec:
+  type: ClusterIP
+  selector:
+    app: smserver
+  ports:
+  - name: backend
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smserver-frontend
+  namespace: smserver
+spec:
+  type: ClusterIP
+  selector:
+    app: smserver
+  ports:
+  - name: frontend
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+
+---
+# Optional: Ingress configuration
+# Uncomment and adjust for your ingress controller
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: smserver-ingress
+#   namespace: smserver
+#   annotations:
+#     nginx.ingress.kubernetes.io/rewrite-target: /
+# spec:
+#   rules:
+#   - host: smserver.yourdomain.com
+#     http:
+#       paths:
+#       - path: /api
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: smserver-backend
+#             port:
+#               number: 8080
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: smserver-frontend
+#             port:
+#               number: 3000

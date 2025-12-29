@@ -85,6 +85,107 @@ pnpm dev
 ```
 Open `http://localhost:3000` and log in with the admin account. Production build: `pnpm build && pnpm start`.
 
+## Docker deployment (recommended)
+
+### Quick start with environment variables (easiest)
+1) Create environment file from template:
+```bash
+cp .env.example .env
+```
+
+2) Edit `.env` and set your secrets:
+```bash
+JWT_SECRET=your-super-secret-jwt-key-here
+ADMIN_PASSWORD=your-secure-password
+```
+
+3) Build and start all services (MySQL + SMServer):
+```bash
+docker-compose up -d
+```
+
+4) Access the application:
+   - Frontend: `http://localhost:3000`
+   - Backend API: `http://localhost:8080`
+   - Default credentials: `admin` / (password from `.env`)
+
+### Alternative: Using config.yaml
+If you prefer YAML configuration over environment variables:
+
+1) Copy the Docker config template:
+```bash
+cp backend/config.docker.yaml backend/config.yaml
+```
+
+2) Edit `backend/config.yaml` and change your settings
+
+3) Uncomment the volume mount in `docker-compose.yml`:
+```yaml
+volumes:
+  - ./backend/config.yaml:/app/backend/config.yaml:ro
+```
+
+4) Start services:
+```bash
+docker-compose up -d
+```
+
+### Configuration priority
+Environment variables take precedence over `config.yaml`. You can mix both approaches:
+- Set sensitive values (passwords, secrets) via environment variables
+- Keep static configuration in `config.yaml`
+
+### Supported environment variables
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SM_APP_ADDR` | Server listen address | `:8080` |
+| `SM_APP_JWT_SECRET` | JWT signing secret (required) | `your-secret-key` |
+| `SM_APP_ALLOW_ORIGINS` | CORS allowed origins (comma-separated) | `http://localhost:3000,http://localhost:8080` |
+| `SM_DATABASE_DSN` | MySQL connection string | `user:pass@tcp(host:3306)/db?...` |
+| `SM_DATABASE_MAX_OPEN` | Max open connections | `10` |
+| `SM_DATABASE_MAX_IDLE` | Max idle connections | `2` |
+| `SM_SECURITY_DEFAULT_ADMIN_USER` | Default admin username | `admin` |
+| `SM_SECURITY_DEFAULT_ADMIN_PASSWORD` | Default admin password | `admin123` |
+
+### Management commands
+```bash
+# View logs
+docker-compose logs -f smserver
+
+# Restart services
+docker-compose restart
+
+# Stop services
+docker-compose down
+
+# Remove data volumes as well
+docker-compose down -v
+```
+
+### Building the image separately
+```bash
+# Build the image
+docker build -t smserver:latest .
+
+# Run with environment variables
+docker run -d \
+  -p 8080:8080 \
+  -p 3000:3000 \
+  -e SM_APP_JWT_SECRET=your-secret \
+  -e SM_DATABASE_DSN=user:pass@tcp(host:3306)/db \
+  -e SM_SECURITY_DEFAULT_ADMIN_PASSWORD=admin123 \
+  --name smserver \
+  smserver:latest
+
+# Or run with config file
+docker run -d \
+  -p 8080:8080 \
+  -p 3000:3000 \
+  -v $(pwd)/backend/config.yaml:/app/backend/config.yaml:ro \
+  --name smserver \
+  smserver:latest
+```
+
 ## Adding a device (quick path)
 1) On the phone, open SmsForwarder → enable "主动控制·服务端", choose SM4 encryption, copy the 32-hex SM4 key, and make sure the phone is reachable (LAN IP or tunneled domain).
 2) In the dashboard, create a device with the phone's base URL (e.g., `http://192.168.1.100:5000`) and the SM4 key.

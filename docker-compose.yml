@@ -1,0 +1,67 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: smserver-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: smserver
+      MYSQL_USER: smserver
+      MYSQL_PASSWORD: smserver123
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smserver-network
+
+  smserver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Build-time argument for frontend API URL
+        # Override for production: docker-compose build --build-arg NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    container_name: smserver-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"  # Backend API
+      - "3000:3000"  # Frontend
+    environment:
+      # Backend configuration via environment variables
+      # These override values from config.yaml
+      - SM_APP_ADDR=:8080
+      - SM_APP_JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
+      - SM_APP_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080
+
+      # Database configuration
+      - SM_DATABASE_DRIVER=mysql
+      - SM_DATABASE_DSN=smserver:smserver123@tcp(mysql:3306)/smserver?charset=utf8mb4&parseTime=True&loc=Local
+      - SM_DATABASE_MAX_OPEN=10
+      - SM_DATABASE_MAX_IDLE=2
+
+      # Security configuration
+      - SM_SECURITY_DEFAULT_ADMIN_USER=${ADMIN_USER:-admin}
+      - SM_SECURITY_DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+    # Uncomment to override with file-based config
+    # volumes:
+    #   - ./backend/config.yaml:/app/backend/config.yaml:ro
+    networks:
+      - smserver-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  smserver-network:
+    driver: bridge
