@@ -10,6 +10,24 @@ Self-hosted control panel for managing Android phones running the SmsForwarder a
 - JWT-based admin authentication with default admin seeded on first run.
 - REST API documented in `docs/smserver_api_docs.md`.
 
+## Screenshots
+
+### Device Management
+![Device List](docs/device.png)
+*Manage multiple devices with real-time online status and battery monitoring*
+
+### Device Details
+![Device Info](docs/device_info.png)
+*View device information, quick actions, and enabled features*
+
+### SMS Messages
+![SMS](docs/sms.png)
+*Browse conversations and send SMS remotely*
+
+### Call Logs
+![Calls](docs/calls.png)
+*View call history with detailed information*
+
 ## Repository layout
 - `backend/` — Go 1.21+ service (Gin + XORM + MySQL).
 - `smserver-web/` — Next.js 16 + React 19 dashboard (Tailwind CSS v4).
